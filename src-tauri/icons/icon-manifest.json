@@ -1,0 +1,7 @@
+{
+  "default": "pablo.svg",
+  "bg_color": "#403226",
+  "android_bg": "pablo-android-background.svg",
+  "android_fg": "pablo-android-foreground.svg",
+  "android_fg_scale": 80
+}

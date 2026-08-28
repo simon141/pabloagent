@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Pablo, as a status bar icon.
+
+  Android draws a notification's small icon from its alpha channel alone: the
+  colours are thrown away and the shape is tinted by the system. So this is not
+  the launcher artwork scaled down — a full-colour icon arrives in the tray as a
+  featureless white blob — but the same cow reduced to one flat silhouette, with
+  the eyes, the muzzle and the nostrils punched out of it as transparency.
+
+  The geometry is `icons/pablo.svg` mapped from its 362-unit viewBox onto 22dp
+  centred in the standard 24dp viewport (a 1/16 scale, +1.0 and +1.47 offsets),
+  so the proportions are the launcher icon's. Two departures, both because a
+  faithful scale closes to nothing at this size: the eyes and nostrils are
+  opened up from 0.75dp and 0.69dp, and the outline strokes are dropped since
+  the fills carry the shape on their own.
+
+  Ears and horns are their own paths rather than subpaths of the head: they
+  overlap it, and overlapping subpaths of one evenOdd path would cancel where
+  they meet and leave a notch. Separate paths simply paint over each other. The
+  head keeps the holes, which are strictly inside it and nest cleanly — the
+  nostrils sit inside the muzzle, so evenOdd fills them back in.
+
+  One thing to know before editing this: the release build shrinks resources, and
+  the notification plugin asks for this drawable by name at runtime, which the
+  shrinker cannot see. `res/raw/keep.xml` is what keeps it in the APK — without a
+  reference of some kind it is stripped and the tray falls back to Android's
+  stock info icon.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+  <!-- Horns -->
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M7.562,6.22q-3.312,-1.562,-2.5,-4.75,1.062,2.312,3.562,3.125z" />
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M16.438,6.22q3.312,-1.562,2.5,-4.75,-1.062,2.312,-3.562,3.125z" />
+
+  <!-- Ears -->
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M6.688,7.782q-4.312,-2.375,-5.688,0.688,2.438,2.938,6.188,1.562z" />
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M17.312,7.782q4.312,-2.375,5.688,0.688,-2.438,2.938,-6.188,1.562z" />
+
+  <!-- Head, with the eyes, the muzzle and the nostrils cut out of it -->
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:fillType="evenOdd"
+      android:pathData="M4.312,10.033q0.562,-6.125,7.688,-6.125t7.688,6.125l-1.562,8.375q-0.625,4.125,-6.125,4.125t-6.125,-4.125z M7.075,11.533a1.05,1.05,0,1,0,2.1,0a1.05,1.05,0,1,0,-2.1,0z M14.825,11.533a1.05,1.05,0,1,0,2.1,0a1.05,1.05,0,1,0,-2.1,0z M9.688,14.595h4.625a3,3,0,0,1,3,3v0a3,3,0,0,1,-3,3h-4.625a3,3,0,0,1,-3,-3v0a3,3,0,0,1,3,-3z M8.825,17.22a0.8,1,0,1,0,1.6,0a0.8,1,0,1,0,-1.6,0z M13.575,17.22a0.8,1,0,1,0,1.6,0a0.8,1,0,1,0,-1.6,0z" />
+</vector>

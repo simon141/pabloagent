@@ -1,0 +1,257 @@
+name: Release builds
+
+# Temporarily manual-only to preserve GitHub Actions minutes. Restore the push
+# and pull_request triggers when release builds return.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-builds-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Prepare the continuous release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view continuous --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh api --method PATCH \
+              "repos/$GITHUB_REPOSITORY/git/refs/tags/continuous" \
+              -f sha="$GITHUB_SHA" -F force=true
+            gh release edit continuous --repo "$GITHUB_REPOSITORY" \
+              --prerelease --title "Continuous build" \
+              --notes "Build artifacts from main ($GITHUB_SHA)."
+          else
+            gh release create continuous --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --prerelease \
+              --title "Continuous build" \
+              --notes "Build artifacts from main ($GITHUB_SHA)."
+          fi
+
+  android:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Rust with the Android target
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Point Tauri at the runner's NDK
+        run: echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+
+      - name: Create a throwaway release keystore
+        # The real signing key never leaves the maintainer's machine. CI only
+        # needs a key to exercise minification, resource shrinking, and signing.
+        run: |
+          keytool -genkeypair -noprompt \
+            -keystore "$RUNNER_TEMP/ci.jks" -alias release \
+            -storepass ci-only -keypass ci-only \
+            -keyalg RSA -keysize 2048 -validity 30 \
+            -dname "CN=CI, O=CI, C=AU"
+          cat > src-tauri/gen/android/keystore.properties <<EOF
+          storeFile=$RUNNER_TEMP/ci.jks
+          keyAlias=release
+          storePassword=ci-only
+          keyPassword=ci-only
+          EOF
+
+      - run: npm ci
+
+      - name: Check the rollout renderer
+        # The renderer is the whole reader now, and its id-stability property is
+        # invisible to type checking.
+        run: npm run check:rollout
+
+      - name: Install the Linux libraries the host build needs
+        # `cargo test` links the desktop Tauri stack for the host.
+        timeout-minutes: 10
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev \
+            libxdo-dev libayatana-appindicator3-dev tmux
+
+      - name: Test the transport and the remote shell
+        # Runs the remote side for real against an in-process SSH server.
+        run: cd src-tauri && cargo test
+
+      - name: Build the release APK
+        run: npm run android:build
+
+      - name: Verify ABIs and size
+        run: |
+          apk=$(find src-tauri/gen/android/app/build/outputs/apk \
+                  -name '*release*.apk' | head -1)
+          echo "Checking $apk"
+          ./scripts/verify-apk.sh "$apk"
+
+      - name: Upload the APK to the continuous release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apk=$(find src-tauri/gen/android/app/build/outputs/apk \
+                  -name '*release*.apk' | head -1)
+          cp "$apk" "$RUNNER_TEMP/pabloagent-android-arm64.apk"
+          gh release upload continuous \
+            "$RUNNER_TEMP/pabloagent-android-arm64.apk" \
+            --clobber --repo "$GITHUB_REPOSITORY"
+
+  linux:
+    # Temporarily disabled to conserve the monthly Actions quota.
+    if: ${{ false }}
+    needs: prepare-release
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Tauri and AppImage dependencies
+        timeout-minutes: 10
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev \
+            libxdo-dev libayatana-appindicator3-dev patchelf
+
+      - run: npm ci
+
+      - name: Build portable Linux AppImage
+        run: npm run tauri build -- --bundles appimage
+
+      - name: Verify the Linux outputs
+        run: |
+          file src-tauri/target/release/pabloagent | grep -F 'ELF 64-bit'
+          appimage=$(find src-tauri/target/release/bundle/appimage \
+                       -name '*.AppImage' | head -1)
+          appimage=$(realpath "$appimage")
+          mkdir -p "$RUNNER_TEMP/appimage-check"
+          cd "$RUNNER_TEMP/appimage-check"
+          "$appimage" --appimage-extract \
+            'usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitGPUProcess'
+          test -x \
+            squashfs-root/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitGPUProcess
+
+      - name: Upload Linux files to the continuous release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          appimage=$(find src-tauri/target/release/bundle/appimage \
+                       -name '*.AppImage' | head -1)
+          install -m 755 src-tauri/target/release/pabloagent \
+            "$RUNNER_TEMP/pabloagent-linux-x86_64"
+          install -m 755 "$appimage" \
+            "$RUNNER_TEMP/pabloagent-linux-x86_64.AppImage"
+          gh release upload continuous \
+            "$RUNNER_TEMP/pabloagent-linux-x86_64" \
+            "$RUNNER_TEMP/pabloagent-linux-x86_64.AppImage" \
+            --clobber --repo "$GITHUB_REPOSITORY"
+
+      - name: Add download links to the run summary
+        if: github.event_name == 'push'
+        run: |
+          {
+            echo "## Downloads"
+            echo
+            echo "- [Linux x86_64 AppImage](https://github.com/$GITHUB_REPOSITORY/releases/download/continuous/pabloagent-linux-x86_64.AppImage)"
+            echo "- [Linux x86_64 binary](https://github.com/$GITHUB_REPOSITORY/releases/download/continuous/pabloagent-linux-x86_64)"
+            echo "- [Continuous release](https://github.com/$GITHUB_REPOSITORY/releases/tag/continuous)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  windows:
+    needs: prepare-release
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install the Windows cross-compilation toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add x86_64-pc-windows-msvc
+          cargo install --locked cargo-xwin
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: x86_64-pc-windows-msvc
+
+      - name: Install the cross linker
+        timeout-minutes: 10
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang lld llvm
+
+      - run: npm ci
+
+      - name: Cross-compile portable Windows executable
+        run: npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc --no-bundle
+
+      - name: Verify the Windows executable
+        run: file src-tauri/target/x86_64-pc-windows-msvc/release/pabloagent.exe | grep -F 'PE32+ executable'
+
+      - name: Upload the Windows executable to the continuous release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp src-tauri/target/x86_64-pc-windows-msvc/release/pabloagent.exe \
+            "$RUNNER_TEMP/pabloagent-windows-x86_64.exe"
+          gh release upload continuous \
+            "$RUNNER_TEMP/pabloagent-windows-x86_64.exe" \
+            --clobber --repo "$GITHUB_REPOSITORY"

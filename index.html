@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      interactive-widget=resizes-content is what actually lifts the composer
+      above the soft keyboard: MainActivity calls enableEdgeToEdge(), so on
+      API 35+ the manifest's adjustResize no longer shrinks the window and the
+      IME would otherwise draw over the page.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <title>Pablo Agent</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <div class="status-bar" aria-hidden="true"></div>
+
+    <div id="app">
+      <section id="screen-connect" class="screen">
+        <div class="scroll-body">
+          <header class="hero">
+            <h1>Pablo Agent</h1>
+            <p class="muted">
+              Connect over SSH to a Linux server running the Codex, Claude
+              Code, opencode or pi CLI.
+            </p>
+          </header>
+
+          <form id="form-connect" class="form" autocomplete="off">
+            <!--
+              Host deliberately has no inputmode="url": that maps to Android's
+              URI input type, and Gboard's URL layout drops the suggestion strip
+              that holds the clipboard chip, so the field could not be pasted
+              into. It takes a bare hostname anyway, not a URL.
+            -->
+            <label
+              >Host
+              <input
+                id="in-host"
+                type="text"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="codex.example.com"
+                required
+              />
+            </label>
+            <label
+              >Port
+              <input id="in-port" type="number" value="22" min="1" max="65535" required />
+            </label>
+            <label
+              >Username
+              <input
+                id="in-user"
+                type="text"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                required
+              />
+            </label>
+            <label
+              >Password
+              <input id="in-pass" type="password" autocapitalize="none" required />
+              <span class="hint">Password authentication only.</span>
+            </label>
+            <!-- Any one binary is enough to connect; a harness whose binary is
+                 missing is dropped from the new-chat dialog. -->
+            <label
+              >Codex binary
+              <input
+                id="in-codex"
+                type="text"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="codex"
+              />
+              <span class="hint"
+                >A name on the server's login PATH, or an absolute path. Each
+                turn runs <code>codex exec</code>; no long-running process.</span
+              >
+            </label>
+            <label
+              >Claude Code binary
+              <input
+                id="in-claude"
+                type="text"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="claude"
+              />
+              <span class="hint"
+                >The same, for <code>claude -p</code>. Leave any of these alone
+                if that CLI is not installed on the server.</span
+              >
+            </label>
+            <label
+              >opencode binary
+              <input
+                id="in-opencode"
+                type="text"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="opencode"
+              />
+              <span class="hint"
+                >The same, for <code>opencode run</code>. Its sessions are read
+                out of opencode's own database.</span
+              >
+            </label>
+            <label
+              >pi binary
+              <input
+                id="in-pi"
+                type="text"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="pi"
+              />
+              <span class="hint"
+                >The same, for <code>pi -a --mode json</code>. Its sessions live
+                under <code>~/.pi/agent/sessions</code>.</span
+              >
+            </label>
+            <label
+              >Default workspace path
+              <input
+                id="in-cwd"
+                type="text"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="/home/you/project"
+              />
+            </label>
+
+            <button type="submit" class="primary">Save &amp; connect</button>
+          </form>
+
+          <div id="connect-error" class="error-panel" hidden></div>
+        </div>
+      </section>
+
+      <section id="screen-sessions" class="screen">
+        <!-- No back button: this is the app's home screen, and the way back to
+             an open chat is its own row in the list. -->
+        <header class="bar">
+          <button id="sessions-menu" type="button" class="icon-btn" aria-label="Menu">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 6h16" />
+              <path d="M4 12h16" />
+              <path d="M4 18h16" />
+            </svg>
+          </button>
+          <div class="bar-title">
+            <strong>Sessions</strong>
+          </div>
+          <button id="sessions-refresh" type="button" class="icon-btn" aria-label="Refresh">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+              <path d="M21 3v5h-5" />
+            </svg>
+          </button>
+          <button
+            id="sessions-new"
+            type="button"
+            class="icon-btn new-chat-btn"
+            aria-label="Start a new chat"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+          </button>
+        </header>
+
+        <div id="sessions-body" class="scroll-body ptr-host">
+          <div id="sessions-ptr" class="ptr" aria-hidden="true">
+            <span class="ptr-ring"></span>
+          </div>
+          <!-- Text shared from another app, or forwarded from a chat, waits
+               here rather than being dropped into whichever chat was last
+               open. -->
+          <div id="share-notice" class="share-notice" hidden>
+            <div class="share-notice-head">
+              <span id="share-notice-title" class="share-notice-title"></span>
+              <button
+                id="share-notice-dismiss"
+                type="button"
+                class="share-notice-dismiss"
+                aria-label="Discard the shared text"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </div>
+            <p id="share-notice-text" class="share-notice-text"></p>
+            <p id="share-notice-hint" class="share-notice-hint"></p>
+          </div>
+          <div id="session-list" class="session-list"></div>
+          <div id="sessions-error" class="error-panel" hidden></div>
+        </div>
+      </section>
+
+      <section id="screen-chat" class="screen">
+        <header class="bar">
+          <button
+            id="chat-back"
+            type="button"
+            class="icon-btn chat-back"
+            aria-label="Back to sessions"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <button
+            id="chat-session"
+            type="button"
+            class="session-pill"
+            aria-label="Rename session"
+          >
+            <span id="chat-session-title" class="session-pill-title">Session</span>
+            <span id="chat-session-sub" class="session-pill-sub"></span>
+          </button>
+          <button
+            id="chat-menu-btn"
+            type="button"
+            class="icon-btn"
+            aria-label="Chat menu"
+            aria-haspopup="menu"
+            aria-expanded="false"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 6h16" />
+              <path d="M4 12h16" />
+              <path d="M4 18h16" />
+            </svg>
+          </button>
+        </header>
+
+        <div class="chat-body">
+          <div id="chat-status" class="chat-status" hidden>
+            <span id="chat-harness-icon" class="harness-icon" role="img"></span>
+            <span id="chat-status-text" class="chat-status-text"></span>
+            <button
+              id="context-pill"
+              type="button"
+              class="context-pill"
+              aria-label="Context usage"
+              hidden
+            ></button>
+          </div>
+
+          <div id="transcript" class="transcript"></div>
+
+          <button
+            id="scroll-bottom"
+            type="button"
+            class="scroll-bottom"
+            aria-label="Scroll to the newest message"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5v13" />
+              <path d="m6 13 6 6 6-6" />
+            </svg>
+          </button>
+        </div>
+
+        <div id="typing" class="typing" hidden>
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span id="typing-label" class="typing-label">Codex is working…</span>
+        </div>
+
+        <form id="composer" class="composer multiline">
+          <textarea
+            id="composer-input"
+            rows="1"
+            placeholder="Message Codex…"
+            autocapitalize="sentences"
+          ></textarea>
+          <!-- On screen only while a turn is in flight; `setTurnActive` shows
+               it and disables send together. `type="button"` is load-bearing
+               inside the form: the default is `submit`, so without it stopping
+               a turn would also send whatever is in the composer. -->
+          <button
+            id="chat-interrupt"
+            type="button"
+            class="stop-btn"
+            aria-label="Stop turn"
+            hidden
+          >
+            ■
+          </button>
+          <button id="composer-send" type="submit" class="send-btn" aria-label="Send">➤</button>
+        </form>
+      </section>
+    </div>
+
+    <div id="overlay" class="overlay" hidden>
+      <!-- Inline rather than an `<img>`: the Android WebView has no asset
+           server to fetch from. -->
+      <div class="spinner" aria-hidden="true">
+        <span class="spinner-shadow"></span>
+        <!-- `aria-hidden` again on the svg itself: the linter reads one element
+             at a time and cannot see the parent already hides it. -->
+        <svg
+          class="spinner-cow"
+          aria-hidden="true"
+          viewBox="75 72 362 362"
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <path
+            d="M185 160q-53-25-40-76 17 37 57 50M327 160q53-25 40-76-17 37-57 50"
+            fill="#F4D48C"
+            stroke="#403226"
+            stroke-width="9"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M171 185q-69-38-91 11 39 47 99 25M341 185q69-38 91 11-39 47-99 25"
+            fill="#FFF8E8"
+            stroke="#403226"
+            stroke-width="10"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M133 221q9-98 123-98t123 98l-25 134q-10 66-98 66t-98-66Z"
+            fill="#FFF8E8"
+            stroke="#403226"
+            stroke-width="11"
+          />
+          <circle cx="194" cy="245" r="12" fill="#403226" />
+          <circle cx="318" cy="245" r="12" fill="#403226" />
+          <rect
+            x="171"
+            y="294"
+            width="170"
+            height="96"
+            rx="48"
+            fill="#EBA0A0"
+            stroke="#403226"
+            stroke-width="10"
+          />
+          <ellipse cx="218" cy="336" rx="11" ry="14" fill="#403226" />
+          <ellipse cx="294" cy="336" rx="11" ry="14" fill="#403226" />
+          <path
+            d="M235 370q21 17 42 0"
+            fill="none"
+            stroke="#403226"
+            stroke-width="9"
+            stroke-linecap="round"
+          />
+        </svg>
+      </div>
+      <p id="overlay-text">Connecting…</p>
+    </div>
+
+    <!-- The sheet takes focus when the drawer opens, not its first item: a menu
+         with something highlighted on appearance reads as already chosen. -->
+    <div id="drawer" class="drawer" hidden>
+      <div class="drawer-sheet" tabindex="-1">
+        <h2>Settings</h2>
+        <button type="button" data-action="new-chat" class="drawer-item">New chat</button>
+        <!-- Always listed, drafts or none: asking the server whether any exist
+             would cost every drawer open a round trip. -->
+        <button type="button" data-action="draft-prompts" class="drawer-item">
+          Draft prompts
+        </button>
+        <button type="button" data-action="preferences" class="drawer-item">
+          Preferences
+        </button>
+        <button
+          id="drawer-diagnostics"
+          type="button"
+          data-action="diagnostics"
+          class="drawer-item"
+          hidden
+        >Diagnostics</button>
+        <button type="button" data-action="reconnect" class="drawer-item">Reconnect</button>
+        <button type="button" data-action="clear-ssh" class="drawer-item">
+          SSH credentials
+        </button>
+        <div class="drawer-meta" id="drawer-meta"></div>
+        <a
+          class="drawer-link"
+          href="https://claude.ai/settings/usage"
+          target="_blank"
+          rel="noopener noreferrer"
+        >https://claude.ai/settings/usage</a>
+        <a
+          class="drawer-link"
+          href="https://chatgpt.com/codex/settings/usage"
+          target="_blank"
+          rel="noopener noreferrer"
+        >https://chatgpt.com/codex/settings/usage</a>
+        <div class="drawer-meta drawer-stats" id="drawer-stats"></div>
+        <button type="button" data-action="close" class="ghost block">Close</button>
+      </div>
+    </div>
+
+    <div id="chat-menu" class="chat-menu" hidden>
+      <div class="chat-menu-sheet" role="menu" tabindex="-1">
+        <button
+          id="chat-menu-refresh"
+          type="button"
+          class="chat-menu-item"
+          role="menuitem"
+        >
+          Refresh chat
+        </button>
+        <button
+          id="chat-menu-session-data"
+          type="button"
+          class="chat-menu-item"
+          role="menuitem"
+        >
+          Session data…
+        </button>
+        <!-- The same file, formatted by `jq` into a temp file on the server:
+             several times the size of the minified one, and not something to
+             build in a WebView. -->
+        <button
+          id="chat-menu-session-pretty"
+          type="button"
+          class="chat-menu-item"
+          role="menuitem"
+        >
+          Session file (pretty)…
+        </button>
+        <button
+          id="chat-menu-filters"
+          type="button"
+          class="chat-menu-item"
+          role="menuitem"
+        >
+          <span>Filters</span>
+          <span id="chat-menu-filters-count" class="chat-menu-note"></span>
+        </button>
+        <button
+          id="chat-menu-label"
+          type="button"
+          class="chat-menu-item"
+          role="menuitem"
+        >
+          Set label…
+        </button>
+        <!-- The sidecar's one-way "done with this" flag; an already-closed
+             session shows the item disabled, because nothing reopens one. -->
+        <button
+          id="chat-menu-close"
+          type="button"
+          class="chat-menu-item"
+          role="menuitem"
+        >
+          Mark as closed…
+        </button>
+        <button
+          id="chat-menu-delete"
+          type="button"
+          class="chat-menu-item danger"
+          role="menuitem"
+        >
+          Delete session…
+        </button>
+      </div>
+    </div>
+
+    <div id="modal-filters" class="modal" hidden>
+      <div class="modal-sheet filters-sheet">
+        <h2>Filters</h2>
+        <p class="muted small">
+          Tick anything you would rather not see. Kept on this device only —
+          never sent to the server — and it applies to every
+          <span id="filters-harness">codex</span> chat, not just this one.
+        </p>
+        <div id="filters-list" class="filter-list"></div>
+        <p id="filters-none" class="muted small" hidden></p>
+        <div class="modal-actions">
+          <button id="filters-defaults" type="button" class="ghost">Reset defaults</button>
+          <button id="filters-reset" type="button" class="ghost">Show all</button>
+          <button id="filters-close" type="button" class="primary">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Applied as they are changed rather than on a Done button, so the only
+         action here closes the dialog. -->
+    <div id="modal-preferences" class="modal" hidden>
+      <div class="modal-sheet">
+        <h2>Preferences</h2>
+        <label
+          >Appearance
+          <select id="set-theme">
+            <option value="system">Use the OS default</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+          <span class="hint"
+            >Kept on this device only. The OS default follows the phone's own
+            light or dark setting, including while the app is open.</span
+          >
+        </label>
+        <label
+          >Chat bubble text size
+          <select id="set-chat-font-size">
+            <option value="8">8px</option>
+            <option value="9">9px</option>
+            <option value="10">10px</option>
+            <option value="12">12px</option>
+            <option value="15">15px (Default)</option>
+            <option value="17">17px</option>
+          </select>
+          <span class="hint"
+            >Applies to messages in every chat and is kept when the app is
+            reopened.</span
+          >
+        </label>
+        <!-- A server path, unlike everything else in this dialog. -->
+        <label
+          >Draft prompts path
+          <input
+            id="set-drafts-path"
+            type="text"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+            placeholder="~/.local/share/pabloagent/draft-prompts"
+          />
+          <span class="hint"
+            >Where draft prompts are kept on the server. Leave blank for the
+            default.</span
+          >
+        </label>
+        <label class="filter-row">
+          <input type="checkbox" id="set-send-on-enter" />
+          <span class="filter-label">
+            <span>Send on enter</span>
+            <span class="filter-hint"
+              >Press Enter to send. Shift+Enter adds a new line.</span
+            >
+          </span>
+        </label>
+        <!-- Shipped in release builds too, so someone having trouble can be
+             talked through turning it on. -->
+        <label class="filter-row">
+          <input type="checkbox" id="set-maintenance" />
+          <span class="filter-label">
+            <span>Maintenance mode</span>
+            <span class="filter-hint"
+              >Shows debugging tools, like the Filters dialog's Copy filter
+              state button. For troubleshooting — leave off otherwise.</span
+            >
+          </span>
+        </label>
+        <div class="modal-actions">
+          <button id="preferences-close" type="button" class="primary">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- The name is the file's path under the drafts directory. A name already
+         taken keeps this dialog open with the error. -->
+    <div id="modal-draft-name" class="modal" hidden>
+      <div class="modal-sheet">
+        <!-- biome-ignore lint/a11y/useHeadingContent: `openDraftNameModal`
+             fills this in before the dialog is ever shown. -->
+        <h2 id="draft-name-heading"></h2>
+        <label
+          >Name
+          <input
+            id="draft-name-input"
+            type="text"
+            maxlength="200"
+            autocapitalize="none"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="project1/tasks/fix-bug"
+          />
+          <span class="hint"
+            >Names the .md file on the server. A / saves it in folders,
+            created as needed.</span
+          >
+        </label>
+        <div id="draft-name-error" class="error-panel" hidden></div>
+        <div class="modal-actions">
+          <button id="draft-name-cancel" type="button" class="ghost">Cancel</button>
+          <button id="draft-name-save" type="button" class="primary">
+            <span
+              id="draft-name-spinner"
+              class="spinner-inline"
+              role="status"
+              aria-label="Saving the draft"
+              hidden
+            ></span>
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loaded fresh each time this opens. The list scrolls inside the sheet so
+         Close stays on screen. -->
+    <div id="modal-drafts" class="modal" hidden>
+      <div class="modal-sheet drafts-sheet">
+        <h2>Draft prompts</h2>
+        <p class="muted small">
+          Tap a draft to use and delete it. Press and hold one for more options.
+        </p>
+        <div id="drafts-list" class="draft-list"></div>
+        <p id="drafts-status" class="drafts-status muted small" role="status" hidden></p>
+        <div id="drafts-error" class="error-panel" hidden></div>
+        <div class="modal-actions">
+          <button id="drafts-close" type="button" class="primary">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-hostkey" class="modal" hidden>
+      <div class="modal-sheet">
+        <h2>Verify host key</h2>
+        <p id="hostkey-warning" class="warn" hidden></p>
+        <p class="muted small">
+          This server is not yet trusted on this device. Check the fingerprint
+          matches the server before accepting.
+        </p>
+        <dl class="kv">
+          <dt>Server</dt><dd id="hk-host"></dd>
+          <dt>Algorithm</dt><dd id="hk-alg"></dd>
+          <dt>Fingerprint</dt><dd id="hk-fp" class="mono"></dd>
+        </dl>
+        <details>
+          <summary>Full public key</summary>
+          <pre id="hk-full" class="mono wrap"></pre>
+        </details>
+        <!-- Cancel is what Enter presses here, against the usual rule: a
+             fingerprint nobody read is not one to trust to a keystroke. -->
+        <div class="modal-actions">
+          <button id="hk-reject" type="button" class="ghost" data-autofocus>Cancel</button>
+          <button id="hk-accept" type="button" class="primary">Accept &amp; connect</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-newchat" class="modal" hidden>
+      <div class="modal-sheet">
+        <h2>New chat</h2>
+        <label id="nc-harness-row"
+          >Agent CLI
+          <select id="nc-harness"></select>
+          <span id="nc-harness-hint" class="hint"></span>
+        </label>
+        <label
+          ><span class="field-title"
+            >Model
+            <span
+              id="nc-model-loading"
+              class="spinner-inline"
+              role="status"
+              aria-label="Loading Pi models"
+              hidden
+            ></span
+          ></span>
+          <select id="nc-model"></select>
+        </label>
+        <label
+          >Reasoning effort
+          <select id="nc-effort"></select>
+        </label>
+        <label id="nc-permission-row" hidden
+          >Permissions
+          <select id="nc-permission"></select>
+          <span class="hint"
+            >A turn run this way cannot ask for approval, so a tool call that
+            would prompt is refused instead. The default leaves it to the
+            server's own <code>settings.json</code>.</span
+          >
+        </label>
+        <label
+          >Workspace path
+          <input
+            id="nc-cwd"
+            type="text"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+            placeholder="/home/you/project"
+          />
+        </label>
+        <!-- Shared or forwarded text riding along with the new chat, which
+             "Create" says nothing about otherwise. -->
+        <div id="nc-pending" class="nc-pending" hidden>
+          <span id="nc-pending-label" class="nc-pending-label"></span>
+          <p id="nc-pending-text" class="nc-pending-text"></p>
+        </div>
+        <div id="newchat-error" class="error-panel" hidden></div>
+        <div class="modal-actions">
+          <button id="nc-cancel" type="button" class="ghost">Cancel</button>
+          <button id="nc-create" type="button" class="primary">Create</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-context" class="modal" hidden>
+      <div class="modal-sheet">
+        <h2>Context usage</h2>
+        <p id="ctx-headline" class="ctx-headline"></p>
+        <div class="ctx-meter"><div id="ctx-meter-fill" class="ctx-meter-fill"></div></div>
+        <dl class="kv">
+          <dt>Tokens used</dt><dd id="ctx-used"></dd>
+          <dt>Remaining</dt><dd id="ctx-left"></dd>
+          <dt>Maximum</dt><dd id="ctx-max"></dd>
+        </dl>
+        <p id="ctx-note" class="muted small"></p>
+        <section id="ctx-request" class="ctx-limits" hidden>
+          <h3>Last request</h3>
+          <dl id="ctx-request-list" class="kv"></dl>
+        </section>
+        <section id="ctx-session" class="ctx-limits" hidden>
+          <h3>Session total</h3>
+          <dl id="ctx-session-list" class="kv"></dl>
+        </section>
+        <p id="ctx-cost-note" class="muted small" hidden></p>
+        <p id="ctx-claude-usage-note" class="muted small" hidden>
+          <a
+            href="https://claude.ai/settings/usage"
+            target="_blank"
+            rel="noopener noreferrer"
+          >https://claude.ai/settings/usage</a>
+        </p>
+        <!-- The link is the section's footer, which is why the section survives
+             having no snapshot to show. See `renderCodexRateLimits`. -->
+        <section id="ctx-codex-limits" class="ctx-limits" hidden>
+          <h3>Codex usage limits</h3>
+          <dl id="ctx-codex-limits-list" class="kv"></dl>
+          <p id="ctx-codex-limits-note" class="muted small" hidden>
+            Latest rate-limit snapshot recorded in this chat.
+          </p>
+          <p id="ctx-codex-usage-note" class="muted small" hidden>
+            Visit
+            <a
+              href="https://chatgpt.com/codex/settings/usage"
+              target="_blank"
+              rel="noreferrer noopener"
+            >https://chatgpt.com/codex/settings/usage</a>
+            for up-to-date information on rate limits and credits.
+          </p>
+        </section>
+        <!-- Last because it is the one figure not about tokens. Free to show:
+             a running total of bytes already read. See `wholeLineBytes`. -->
+        <section id="ctx-file" class="ctx-limits" hidden>
+          <h3>Session file</h3>
+          <dl id="ctx-file-list" class="kv"></dl>
+          <p id="ctx-file-note" class="muted small" hidden></p>
+        </section>
+        <div class="modal-actions">
+          <button id="ctx-close" type="button" class="primary">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-rename" class="modal" hidden>
+      <div class="modal-sheet">
+        <h2>Rename chat</h2>
+        <label
+          >Name
+          <input
+            id="rename-name"
+            type="text"
+            maxlength="120"
+            autocapitalize="sentences"
+            autocomplete="off"
+          />
+        </label>
+        <p class="muted small">
+          Saved by the agent harness on the server. PabloAgent does not keep
+          a separate session name.
+        </p>
+        <div id="rename-error" class="error-panel" hidden></div>
+        <div class="modal-actions">
+          <button id="rename-cancel" type="button" class="ghost">Cancel</button>
+          <button id="rename-save" type="button" class="primary">Rename</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- The sidecar's label: a title override in this app's own record, never
+         in anything a CLI reads. The original title stays visible here because
+         the label replaces it everywhere else. -->
+    <div id="modal-label" class="modal" hidden>
+      <div class="modal-sheet">
+        <h2>Session label</h2>
+        <p id="label-original" class="muted small"></p>
+        <label
+          >Label
+          <input
+            id="label-input"
+            type="text"
+            maxlength="120"
+            autocapitalize="sentences"
+            autocomplete="off"
+          />
+        </label>
+        <p class="muted small">
+          Shown instead of the session title, in this app only. Leave blank to
+          remove the label.
+        </p>
+        <div id="label-error" class="error-panel" hidden></div>
+        <div class="modal-actions">
+          <button id="label-cancel" type="button" class="ghost">Cancel</button>
+          <button id="label-save" type="button" class="primary">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tapping a path that names a file could mean two things, so it asks.
+         "Open" fetches the bytes onto this device; "Open in app…" hands
+         `ssh://…` to whichever editor claims the scheme. A path with no
+         extension never gets here. -->
+    <div id="modal-openfile" class="modal" hidden>
+      <div class="modal-sheet">
+        <h2>Open file</h2>
+        <p id="openfile-path" class="mono wrap small muted"></p>
+        <!-- The size takes a round trip, but nothing waits for it: the choices
+             below are live from the moment the dialog opens. -->
+        <p id="openfile-size" class="small muted openfile-size">
+          <span id="openfile-size-spinner" class="spinner-inline" aria-hidden="true"></span>
+          <span id="openfile-size-text">Checking the size…</span>
+        </p>
+        <div id="openfile-choices" class="modal-actions column">
+          <button id="openfile-download" type="button" class="ghost choice">
+            <span class="choice-label">Open</span>
+            <span class="choice-sub">Fetch the file onto this phone and open it here</span>
+          </button>
+          <button id="openfile-save" type="button" class="ghost choice">
+            <span class="choice-label">Save to…</span>
+            <span class="choice-sub">Fetch the file and choose where to keep it</span>
+          </button>
+          <button id="openfile-editor" type="button" class="ghost choice">
+            <span class="choice-label">Open in app…</span>
+            <span class="choice-sub">Hand the path to an app that opens ssh:// links</span>
+          </button>
+        </div>
+        <!-- Replaces the choices while the transfer runs. -->
+        <div id="openfile-progress" hidden>
+          <p id="openfile-progress-text" class="muted small"></p>
+          <div class="ctx-meter"><div id="openfile-meter" class="ctx-meter-fill low"></div></div>
+        </div>
+        <div id="openfile-error" class="error-panel" hidden></div>
+        <div class="modal-actions">
+          <button id="openfile-cancel" type="button" class="ghost">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- One sentence and an OK, for where doing nothing would read as a broken
+         button. -->
+    <div id="modal-alert" class="modal" hidden>
+      <div class="modal-sheet">
+        <!-- biome-ignore lint/a11y/useHeadingContent: `showAlert` fills this in
+             before the dialog is ever shown. -->
+        <h2 id="alert-title"></h2>
+        <p id="alert-body" class="wrap"></p>
+        <div class="modal-actions">
+          <button id="alert-close" type="button" class="primary">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- The app's own dialog rather than `window.confirm`, which a webview is
+         free to skip entirely. -->
+    <div id="modal-confirm" class="modal" hidden>
+      <div class="modal-sheet">
+        <!-- biome-ignore lint/a11y/useHeadingContent: `askConfirm` fills this in
+             before the dialog is ever shown. -->
+        <h2 id="confirm-title"></h2>
+        <p id="confirm-body" class="wrap"></p>
+        <div class="modal-actions">
+          <button id="confirm-cancel" type="button" class="ghost">Cancel</button>
+          <button id="confirm-ok" type="button" class="primary">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- What a card was rendered from, reached by holding its header. -->
+    <div id="modal-raw" class="modal" hidden>
+      <div class="modal-sheet tall">
+        <h2>Raw entry</h2>
+        <p id="raw-sub" class="muted small"></p>
+        <pre id="raw-body" class="mono wrap scrollable"></pre>
+        <div class="modal-actions">
+          <button id="raw-copy" type="button" class="ghost">Copy</button>
+          <button id="raw-close" type="button" class="primary">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-diagnostics" class="modal" hidden>
+      <div class="modal-sheet tall">
+        <h2>Diagnostics</h2>
+        <p class="muted small">
+          Newest last. Tap the log to copy everything.
+        </p>
+        <pre id="diag-body" class="mono wrap scrollable"></pre>
+        <div class="modal-actions">
+          <button id="diag-clear" type="button" class="ghost">Clear</button>
+          <button id="diag-copy" type="button" class="ghost">Copy</button>
+          <button id="diag-close" type="button" class="primary">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="-65 -65 642 642" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Pablo cow icon">
+  <title>Pablo cow icon</title>
+  <g>
+    <path d="M185 160q-53-25-40-76 17 37 57 50M327 160q53-25 40-76-17 37-57 50" fill="#F4D48C" stroke="#403226" stroke-width="9" stroke-linejoin="round"/>
+    <path d="M171 185q-69-38-91 11 39 47 99 25M341 185q69-38 91 11-39 47-99 25" fill="#FFF8E8" stroke="#403226" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M133 221q9-98 123-98t123 98l-25 134q-10 66-98 66t-98-66Z" fill="#FFF8E8" stroke="#403226" stroke-width="11"/>
+    <circle cx="194" cy="245" r="12" fill="#403226"/>
+    <circle cx="318" cy="245" r="12" fill="#403226"/>
+    <rect x="171" y="294" width="170" height="96" rx="48" fill="#EBA0A0" stroke="#403226" stroke-width="10"/>
+    <ellipse cx="218" cy="336" rx="11" ry="14" fill="#403226"/>
+    <ellipse cx="294" cy="336" rx="11" ry="14" fill="#403226"/>
+    <path d="M235 370q21 17 42 0" fill="none" stroke="#403226" stroke-width="9" stroke-linecap="round"/>
+  </g>
+</svg>

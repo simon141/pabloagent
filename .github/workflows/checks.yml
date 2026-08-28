@@ -1,0 +1,83 @@
+# The release workflow is manual-only to save quota. These checks still run on
+# pull requests and main.
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # `biome check` is lint, formatting and import order in one pass.
+      - name: Lint and check formatting
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Check the rollout renderer
+        # The renderer is the whole reader now, and its id-stability property is
+        # invisible to type checking.
+        run: npm run check:rollout
+
+  rust:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install Rust with rustfmt and clippy
+        run: |
+          rustup toolchain install stable --profile minimal \
+            --component rustfmt --component clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install the Linux libraries the host build needs
+        # Host tests link the desktop Tauri stack and exercise tmux.
+        timeout-minutes: 10
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev \
+            libxdo-dev libayatana-appindicator3-dev tmux
+
+      - name: Check formatting
+        run: cd src-tauri && cargo fmt --check
+
+      - name: Clippy
+        # `-D warnings` on top of the `[lints.clippy]` table in Cargo.toml: warn
+        # locally, fail here.
+        run: cd src-tauri && cargo clippy --all-targets -- -D warnings
+
+      - name: Test the transport and the remote shell
+        # Runs the remote side for real against an in-process SSH server.
+        run: cd src-tauri && cargo test

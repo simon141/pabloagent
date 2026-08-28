@@ -1,0 +1,32 @@
+{
+  "name": "pabloagent",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "android:build": "tauri android build --apk --target aarch64",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "check:rollout": "node scripts/check-rollout.mjs",
+    "check:drafts": "node scripts/check-drafts.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write ."
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
+    "@tauri-apps/plugin-dialog": "^2.7.2",
+    "@tauri-apps/plugin-notification": "^2.3.3",
+    "@tauri-apps/plugin-opener": "^2.5.4"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.8",
+    "@tauri-apps/cli": "^2",
+    "typescript": "~5.9.3",
+    "vite": "^6.0.3"
+  }
+}

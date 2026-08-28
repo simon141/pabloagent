@@ -1,0 +1,2577 @@
+:root {
+  --bg: #0f1115;
+  --bg-raised: #171a21;
+  --bg-input: #1f232c;
+  --line: #2a2f3a;
+  --text: #e6e8ee;
+  --muted: #98a0b3;
+  --accent: #4f8cff;
+  --accent-ink: #ffffff;
+  --user-bubble: #29508f;
+  --agent-bubble: #1c2029;
+  --tool-bubble: #16202a;
+  --reason-bubble: #201a2b;
+  --danger: #ff6b6b;
+  --danger-ink: #2a0d0f;
+  --danger-bg: #2a1618;
+  --ok: #4ec98a;
+  --warn: #ffc857;
+  --stat-cpu: #c9a7f0;
+  --stat-memory: #f59e0b;
+  --stat-disk: #7ec3f0;
+  --icon-codex: #f2f4f8;
+  --icon-claude: #d97757;
+  --icon-opencode: #7ec3f0;
+  --icon-pi: #c9a7f0;
+  --avatar-bg: #232936;
+  --avatar-codex: #2b3140;
+  --avatar-claude: #3a2620;
+  --avatar-opencode: #1d2c3a;
+  --avatar-pi: #2a2338;
+  --row-active: #1c202a;
+  --unread-dot: #4ec98a;
+  --danger-border: #52272c;
+  --danger-line: #5a2a2f;
+  --danger-text: #ffd9d9;
+  --unread-text: #fff;
+  --chip-bg: #222836;
+  --accent-soft-bg: #2b3a56;
+  --accent-soft-text: #9dc0ff;
+  --ok-bg: #16281f;
+  --warn-bg: #2b2517;
+  --user-line: #37629f;
+  --scrim: rgba(6, 8, 12, 0.72);
+  --drawer-scrim: rgba(6, 8, 12, 0.62);
+  --overlay-bg: rgba(9, 11, 15, 0.9);
+  --spinner-shadow: #39404e;
+  --reason-line: #33294a;
+  --badge-bg: #2a3140;
+  --danger-badge-bg: #3a2126;
+  --danger-badge-text: #ffb3b3;
+  --ok-badge-bg: #1f3529;
+  --ok-badge-text: #9be6b4;
+  --code-bg: #10141b;
+  --danger-code-text: #ffb4ad;
+  --diff-add-bg: #142a1d;
+  --diff-add-text: #a5e8c0;
+  --table-head-bg: #161b24;
+  --table-line: #232833;
+  --table-alt-bg: #14181f;
+  --table-code: #d8dce6;
+  --link: #9dc0ff;
+  --link-active: #cfe0ff;
+  --file-link: #a8d8b0;
+  --file-link-active: #d6f0dc;
+  --status-bar: #171a21;
+  --select-caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2398a0b3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --radius: 14px;
+  --chat-font-size: 15px;
+
+  --app-height: 100vh;
+
+  /*
+   * How much of the window the system bars cover. `env(safe-area-inset-*)` is
+   * only the fallback: the Android WebView fills those in for a display cutout
+   * and nothing else, so the navigation bar reads as `0px` on every phone.
+   * `installSystemInsets` in `main.ts` overwrites all four. The left/right pair
+   * are `0px` in portrait and take the three-button bar's side in landscape.
+   */
+  --inset-top: env(safe-area-inset-top);
+  --inset-right: env(safe-area-inset-right);
+  --inset-bottom: env(safe-area-inset-bottom);
+  --inset-left: env(safe-area-inset-left);
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #f5f7fb;
+  --bg-raised: #fff;
+  --bg-input: #edf1f6;
+  --line: #cbd3df;
+  --text: #172033;
+  --muted: #5d687a;
+  --accent: #2563eb;
+  --user-bubble: #dbeafe;
+  --agent-bubble: #fff;
+  --tool-bubble: #edf3f8;
+  --reason-bubble: #f4effb;
+  --danger: #a9232c;
+  --danger-ink: #ffffff;
+  --danger-bg: #fdebed;
+  --ok: #167548;
+  --warn: #8a5b00;
+  --stat-cpu: #7652a6;
+  --stat-memory: #c2410c;
+  --stat-disk: #256f9d;
+  --icon-codex: #111827;
+  --icon-claude: #b95035;
+  --icon-opencode: #256f9d;
+  --icon-pi: #7652a6;
+  --avatar-bg: #e6ecf4;
+  --avatar-codex: #e4e8ef;
+  --avatar-claude: #fbe6de;
+  --avatar-opencode: #dcecf8;
+  --avatar-pi: #ece2f8;
+  --row-active: #e8eef6;
+  --unread-dot: #1f9d5f;
+  --danger-border: #d98f95;
+  --danger-line: #e4a6aa;
+  --danger-text: #8f1d24;
+  --unread-text: #172033;
+  --chip-bg: #e5eaf1;
+  --accent-soft-bg: #dbeafe;
+  --accent-soft-text: #1d4ed8;
+  --ok-bg: #dff4e8;
+  --warn-bg: #fff1c7;
+  --user-line: #93b4e8;
+  --scrim: rgba(15, 23, 42, 0.38);
+  --drawer-scrim: rgba(15, 23, 42, 0.32);
+  --overlay-bg: rgba(245, 247, 251, 0.92);
+  --spinner-shadow: #172033;
+  --reason-line: #d6c4e8;
+  --badge-bg: #e2e8f0;
+  --danger-badge-bg: #f8dfe1;
+  --danger-badge-text: #95232b;
+  --ok-badge-bg: #dff1e6;
+  --ok-badge-text: #17623d;
+  --code-bg: #e8edf4;
+  --danger-code-text: #a3212a;
+  --diff-add-bg: #def2e5;
+  --diff-add-text: #17623d;
+  --table-head-bg: #e5ebf3;
+  --table-line: #d7dee8;
+  --table-alt-bg: #f0f4f8;
+  --table-code: #2d3748;
+  --link: #1d5fbf;
+  --link-active: #174a91;
+  --file-link: #1d7a43;
+  --file-link-active: #145c31;
+  --status-bar: #e2e8f0;
+  --select-caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%235d687a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  overscroll-behavior: none;
+  /*
+   * Selection is opt-in, app-wide. The places where selecting text is the
+   * point say so below, and `Transcript.confineSelection` keeps a selection
+   * inside whichever one it started in.
+   */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/*
+ * Where selecting is the point. `user-select: contain` would confine it on its
+ * own, but Chromium does not implement it, so the JS clamp is what holds. It is
+ * listed anyway for a WebView that grows support.
+ */
+.bubble.agent,
+.bubble.error,
+.card-body,
+.modal-sheet,
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+  /* biome-ignore lint/suspicious/noDuplicateProperties: `text` is the fallback
+     for the WebViews that drop the `contain` line below it. */
+  user-select: contain;
+}
+
+.bubble .role {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#app {
+  height: var(--app-height);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/*
+ * The band behind Android's status bar, painted by the app because the window
+ * is edge-to-edge and `Window.statusBarColor` is ignored at this `targetSdk`.
+ * Above every other layer, and `pointer-events: none` so it never eats a tap
+ * meant for the header underneath.
+ */
+.status-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--inset-top);
+  z-index: 100;
+  background: var(--status-bar);
+  pointer-events: none;
+}
+
+.screen {
+  display: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+.screen.active {
+  display: flex;
+}
+
+.scroll-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px calc(16px + var(--inset-right)) calc(24px + var(--inset-bottom))
+    calc(16px + var(--inset-left));
+}
+
+.mono {
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 12.5px;
+}
+.wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 12.5px;
+}
+.pad {
+  padding: 0 2px 12px;
+}
+.warn {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* The side insets are what keep the picker's ☰ and + off the three-button
+   * navigation bar, which moves to a side of the screen in landscape. */
+  padding: calc(8px + var(--inset-top)) calc(10px + var(--inset-right)) 8px
+    calc(10px + var(--inset-left));
+  background: var(--bg-raised);
+}
+.bar-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.bar-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-btn {
+  flex: 0 0 auto;
+  /* Flex centring, not inline layout: an inline `<svg>` sits on the text
+   * baseline, so the line box's descent pushes the icon above centre. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.icon-btn:active {
+  background: var(--bg-input);
+}
+
+.icon-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#sessions-menu svg {
+  width: 22px;
+  height: 22px;
+}
+#sessions-refresh svg {
+  width: 20px;
+  height: 20px;
+}
+#sessions-new svg {
+  width: 26px;
+  height: 26px;
+}
+.new-chat-btn:active {
+  color: var(--accent);
+}
+
+.session-pill {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 4px 2px;
+  min-height: 40px;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.session-pill:not(:disabled):active {
+  color: var(--accent);
+}
+.session-pill:disabled {
+  cursor: default;
+}
+.session-pill-title,
+.session-pill-sub {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-pill-title {
+  font-size: 14px;
+  line-height: 1.2;
+}
+.session-pill-sub {
+  font-size: 10.5px;
+  line-height: 1.2;
+  color: var(--muted);
+}
+.session-pill-sub:empty {
+  display: none;
+}
+
+.hero {
+  padding: 24px 4px 8px;
+}
+#screen-connect .hero {
+  margin-top: 24px;
+}
+.hero h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+}
+.hero p {
+  margin: 0;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+input,
+textarea,
+select {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 16px; /* >=16px stops Android auto-zoom on focus */
+  font-family: inherit;
+}
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: var(--select-caret);
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 10px 6px;
+  /* The caret's 10px, its 12px inset and a 12px gap, so a long option name ends
+   * before the arrow instead of running under it. */
+  padding-right: 34px;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.hint {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.field-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+button {
+  font-family: inherit;
+  font-size: 15px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.primary {
+  padding: 13px 16px;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+.primary:disabled {
+  opacity: 0.5;
+}
+/* The answer to "this cannot be undone", in the danger colour rather than the
+ * accent's "yes, go on". */
+.primary.danger {
+  background: var(--danger);
+  color: var(--danger-ink);
+}
+/* Which answer Enter would press. Stated rather than left to the browser's own
+ * ring, which is a different colour and thickness in each theme and all but
+ * invisible against a filled button. */
+.primary:focus-visible,
+.ghost:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+.ghost {
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.ghost.danger {
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+.block {
+  width: 100%;
+  display: block;
+}
+
+.ptr-host {
+  overscroll-behavior-y: contain;
+}
+.ptr {
+  height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.ptr.settling {
+  transition: height 0.18s ease;
+}
+.ptr-ring {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin: 10px 0;
+  border-radius: 50%;
+  border: 2.5px solid var(--line);
+  border-top-color: var(--accent);
+  opacity: 0.55;
+}
+.ptr.armed .ptr-ring {
+  opacity: 1;
+}
+.ptr.busy .ptr-ring {
+  animation: spin 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ptr.busy .ptr-ring {
+    animation: none;
+  }
+}
+
+.share-notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.share-notice-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.share-notice-title {
+  flex: 1;
+  font-weight: 600;
+}
+.share-notice-dismiss {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: -4px -4px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  line-height: 1;
+  cursor: pointer;
+}
+.share-notice-dismiss svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.share-notice-dismiss:active {
+  background: var(--bg-input);
+  color: var(--text);
+}
+.share-notice-text {
+  margin: 6px 0 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--accent);
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+.share-notice-hint {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.nc-pending {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--bg-input);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.nc-pending-label {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.nc-pending-text {
+  margin: 4px 0 0;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+
+#sessions-body {
+  display: flex;
+  flex-direction: column;
+}
+.session-list {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  /* Full-bleed: the rows reach the edges of the screen, so they cancel the
+   * scroll body's own padding rather than sitting inside it. */
+  margin: 0 -16px;
+}
+.session-empty {
+  margin: auto 0;
+  padding: 24px 18px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.session-group {
+  padding: 14px 16px 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.session-group:first-child {
+  padding-top: 2px;
+}
+
+.session-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 16px;
+  min-height: 76px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.session-row:active {
+  background: var(--row-active);
+}
+.session-row.current {
+  background: var(--row-active);
+}
+/* Where a hardware keyboard is standing. The outline is drawn inside the row
+ * because the row runs the full width of the screen; a ring rather than a
+ * background alone because `.current` already owns that shade. */
+.session-row.selected {
+  background: var(--row-active);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.session-row[data-harness="codex"] {
+  --avatar-bg: var(--avatar-codex);
+}
+.session-row[data-harness="claude"] {
+  --avatar-bg: var(--avatar-claude);
+}
+.session-row[data-harness="opencode"] {
+  --avatar-bg: var(--avatar-opencode);
+}
+.session-row[data-harness="pi"] {
+  --avatar-bg: var(--avatar-pi);
+}
+
+.session-avatar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  background: var(--avatar-bg);
+}
+.session-avatar .harness-icon {
+  width: 24px;
+  height: 24px;
+}
+/*
+ * A running turn animates the CLI's own mark, slowly: 2.4s reads as "still
+ * going" rather than as a busy spinner. No `prefers-reduced-motion` fallback,
+ * because an Android WebView reports `reduce` for any phone whose animator
+ * duration scale is off, and this animation is the row's whole meaning.
+ */
+.session-row.running .session-avatar .harness-icon {
+  animation: spin 2.4s linear infinite;
+}
+.session-row.closed .harness-icon,
+.chat-status.closed .harness-icon {
+  filter: grayscale(1);
+}
+
+.session-row-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.session-row-top,
+.session-row-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.session-row-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 15.5px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-row.closed .session-row-title,
+.session-pill.closed .session-pill-title {
+  text-decoration: line-through;
+}
+.session-row-when {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  line-height: 1.25;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* The sidecar's one-way "done with this" flag: a pill rather than a hidden row,
+ * muted because closed is the settled state. */
+.session-row-closed {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--chip-bg);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+.session-row-sub {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-row-exit {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--danger);
+  white-space: nowrap;
+}
+.session-row-status {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+.session-row-status.unread {
+  border-radius: 50%;
+  background: currentColor;
+}
+.session-row-status.ok {
+  color: var(--unread-dot);
+}
+.session-row-status.failed {
+  color: var(--danger);
+}
+.session-row.unread {
+  background: var(--bg-raised);
+}
+.session-row.unread .session-row-title {
+  color: var(--unread-text);
+  font-weight: 700;
+}
+.session-row.unread .session-row-sub {
+  color: var(--text);
+}
+.session-row.unread .session-row-when {
+  color: var(--unread-dot);
+  font-weight: 600;
+}
+
+.chat-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * Floating rather than stacked: a bar that took its own row and came and went
+ * would change the transcript's height, which moves the very scroll offset that
+ * decides whether it should be there. Out of flow, only opacity moves.
+ */
+.chat-status {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px calc(12px + var(--inset-right)) 5px
+    calc(12px + var(--inset-left));
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--bg-raised);
+  /* On this row rather than under the header, so the line between the chrome
+   * and the conversation fades with the row it belongs to. */
+  border-top: 1px solid var(--line);
+  /* Slow, so the bar does not read as being switched on and off by every
+   * flick. */
+  transition: opacity 900ms ease;
+}
+/* `pointer-events` goes with the fade: a ghosted bar sitting over the
+ * transcript must not be what a tap aimed at the text underneath lands on. */
+.chat-status.dimmed {
+  opacity: 0.3;
+  pointer-events: none;
+}
+.harness-icon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  width: 1.25em;
+  height: 1.25em;
+}
+.harness-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* A long workspace path ellipsises instead of pushing the context pill off
+ * screen; `min-width: 0` is what lets a flex item shrink below its content. */
+.chat-status-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-pill {
+  flex: 0 0 auto;
+  min-height: 24px;
+  padding: 2px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  background: var(--chip-bg);
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.context-pill.low {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.context-pill.mid {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.context-pill.high {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.context-pill:active {
+  filter: brightness(1.35);
+}
+
+/*
+ * The context dialog carries more rows than any other, so the gap is tighter and
+ * every child leaves the spacing to it. A `<p>` in a flex column is the trap:
+ * its 1em UA margin is added to the gap, not merged with it.
+ */
+#modal-context .modal-sheet {
+  gap: 10px;
+}
+#modal-context .modal-sheet > p {
+  margin: 0;
+}
+#ctx-codex-usage-note a,
+#ctx-claude-usage-note a {
+  color: var(--link);
+  overflow-wrap: anywhere;
+}
+#ctx-codex-usage-note a:active,
+#ctx-claude-usage-note a:active {
+  color: var(--link-active);
+}
+
+.ctx-headline {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ctx-headline.low {
+  color: var(--ok);
+}
+.ctx-headline.mid {
+  color: var(--warn);
+}
+.ctx-headline.high {
+  color: var(--danger);
+}
+.ctx-meter {
+  height: 8px;
+  /*
+   * `overflow: hidden` makes a flex item's automatic minimum size zero instead
+   * of its content height, and this bar is 8px of pure background with no
+   * content to hold it open — without `flex: 0 0 auto` an overflowing sheet
+   * flattens it to nothing.
+   */
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  overflow: hidden;
+}
+.ctx-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--muted);
+  transition: width 0.2s ease;
+}
+.ctx-meter-fill.low {
+  background: var(--ok);
+}
+.ctx-meter-fill.mid {
+  background: var(--warn);
+}
+.ctx-meter-fill.high {
+  background: var(--danger);
+}
+/* The sheet's gap already provides the air above the rule; the margin only
+ * tops up what the gap does not cover. */
+.ctx-limits {
+  margin-top: 2px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.ctx-limits h3 {
+  margin: 0 0 9px;
+  font-size: 14px;
+}
+.ctx-limits .kv {
+  gap: 7px 12px;
+}
+.ctx-limits .kv dd {
+  text-align: right;
+  word-break: normal;
+}
+.ctx-limits > p {
+  margin: 9px 0 0;
+}
+
+/* Back to the live end, while the reader is away from the bottom. */
+.scroll-bottom {
+  position: absolute;
+  right: calc(12px + var(--inset-right));
+  bottom: 12px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.28);
+  cursor: pointer;
+  /*
+   * `visibility` is transitioned rather than toggled so the fade survives:
+   * `0s linear 260ms` holds it visible until the opacity has finished, and the
+   * `.on` rule drops the delay. Opacity alone would leave an invisible button
+   * collecting taps and keyboard focus.
+   */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 260ms ease,
+    visibility 0s linear 260ms;
+}
+.scroll-bottom.on {
+  opacity: 0.9;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity 260ms ease,
+    visibility 0s;
+}
+.scroll-bottom:active {
+  background: var(--bg-input);
+  border-color: var(--accent);
+}
+.scroll-bottom svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.transcript {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /*
+   * The top pad clears the floating status line. Measured from the bar itself
+   * (`--chat-status-h`, set in `main.ts`) because the row grows with the
+   * phone's font setting; the fallback is its default-size height.
+   */
+  padding: calc(var(--chat-status-h, 35px) + 12px)
+    calc(12px + var(--inset-right)) 4px calc(12px + var(--inset-left));
+  display: flex;
+  flex-direction: column;
+  /* Tight: every entry draws its own edge, so the gap only stops them
+   * touching. */
+  gap: 5px;
+}
+/*
+ * Every transcript entry keeps its natural height. Flex items in a column
+ * default to shrinkable, and `.card` sets `overflow: hidden`, which makes its
+ * automatic minimum size zero — so once the transcript overflows, flexbox
+ * squashes every card to its borders without this.
+ */
+.transcript > * {
+  flex: 0 0 auto;
+}
+
+.bubble {
+  font-size: var(--chat-font-size);
+  max-width: 88%;
+  padding: 6px 9px;
+  /* Its own radius rather than `--radius`: a bubble has a tail, and 14px
+   * opposite a 4px corner reads as a mistake. */
+  border-radius: 12px;
+  background: var(--agent-bubble);
+  border: 1px solid var(--line);
+  cursor: default;
+  position: relative;
+  white-space: pre-wrap;
+  word-break: break-word;
+  /*
+   * Both pans, so a nested horizontal scroller (`.md-table`) works: the used
+   * touch-action intersects with every ancestor's, so `pan-y` alone here
+   * silently blocks tables from scrolling sideways. Pinch and double-tap zoom
+   * stay suppressed, which is what this is for.
+   */
+  touch-action: pan-x pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.bubble.user {
+  align-self: flex-end;
+  background: var(--user-bubble);
+  border-color: var(--user-line);
+  /* The tail: the corner on the side this message came from. */
+  border-bottom-right-radius: 4px;
+}
+/*
+ * A prompt's text is `display: inline` so the delivery ticks can sit at the end
+ * of its last line; a block sibling would push them onto their own row.
+ * `.bubble-images` is excluded because a strip of pictures is a block.
+ */
+.bubble.user > div:not(.bubble-images) {
+  display: inline;
+}
+/*
+ * A reply hands the long press to Android's selection handles instead of a
+ * menu; `-webkit-touch-callout` is what brings the handles up in the WebView.
+ * It also takes the full width, being the longest thing in the transcript and
+ * the only one carrying markdown. A prompt keeps its 88% and `flex-end`, and
+ * that inset is what marks the two sides of the conversation.
+ */
+.bubble.agent {
+  align-self: stretch;
+  max-width: 100%;
+  /* …and the tail on the other side. */
+  border-bottom-left-radius: 4px;
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+  cursor: text;
+}
+/* An error makes the same trade a reply does: the hold goes to Android's
+ * selection handles, which can take the one line of stderr that matters. */
+.bubble.error {
+  align-self: stretch;
+  max-width: 100%;
+  background: var(--danger-bg);
+  border-color: var(--danger-line);
+  color: var(--danger-text);
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}
+.bubble.system {
+  align-self: center;
+  max-width: 94%;
+  background: transparent;
+  border-style: dashed;
+  color: var(--muted);
+  font-size: calc(var(--chat-font-size) * 0.8333);
+  text-align: center;
+}
+.bubble .role {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+/*
+ * Delivery ticks on the user's own bubbles; `buildTicks` says what each state
+ * means. On the end of the last line, because a row of their own makes every
+ * one-word prompt two lines tall. Still a flex box so a tick never wraps away
+ * from its twin, and `line-height: 0` because the svg is the whole content.
+ */
+.bubble .ticks {
+  display: inline-flex;
+  margin-left: 6px;
+  color: var(--muted);
+  line-height: 0;
+  /* Drops the marks onto the text baseline. Relative rather than
+   * `vertical-align`: a `line-height: 0` box has no baseline of its own. */
+  position: relative;
+  top: 2px;
+}
+/* A strip of images is a block with no last line of text, so the ticks fall
+ * back to their own row under its right edge. */
+.bubble .bubble-images ~ .ticks {
+  display: flex;
+  justify-content: flex-end;
+  margin-left: 0;
+  margin-top: 4px;
+  top: 0;
+}
+.bubble .ticks svg {
+  height: 10px;
+}
+.bubble .ticks.answered {
+  color: var(--ok);
+}
+.bubble.copied::after,
+.card.copied::after {
+  content: "Copied";
+  position: absolute;
+  top: -9px;
+  right: 8px;
+  font-size: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 1px 7px;
+  border-radius: 8px;
+}
+
+.chat-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 66;
+  background: transparent;
+}
+.chat-menu-sheet {
+  position: absolute;
+  top: calc(48px + var(--inset-top));
+  right: calc(8px + var(--inset-right));
+  min-width: 210px;
+  max-width: min(78vw, 320px);
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg-raised);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.chat-menu-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-size: 15px;
+  cursor: pointer;
+}
+.chat-menu-item:focus-visible,
+.chat-menu-item:active {
+  outline: none;
+  background: var(--bg-input);
+}
+.chat-menu-item.danger {
+  color: var(--danger);
+}
+.chat-menu-item:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.chat-menu-note {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--accent-soft-text);
+}
+.chat-menu-note:empty {
+  display: none;
+}
+/*
+ * The sheet holds still and the list scrolls, so Done stays on screen.
+ * `min-height: 0` is what lets a flex item shrink below its content and become
+ * a scroller.
+ */
+.filters-sheet {
+  overflow: hidden;
+}
+.filters-sheet .filter-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Nothing is clipped mid-row at the edges of the scroll. */
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+.filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.filter-heading {
+  margin: 10px 0 2px;
+  padding: 0 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+/*
+ * Whole row is the target: a 20px checkbox is not a thumb-sized one. Several
+ * properties here undo the global `label`/`input` form styles, which are sized
+ * for a text field with a caption over it.
+ */
+.filter-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--text);
+}
+.filter-row:active {
+  background: var(--bg-input);
+}
+.filter-row input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  /* Level with the first line of the label, not with the middle of a hint that
+   * may run to two. */
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+.filter-row .filter-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.filter-row .filter-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+.filter-row .filter-label .mono {
+  font-size: 14px;
+}
+
+/*
+ * Preferences borrows `.filter-row` for its switches, whose siblings here are
+ * selects and inputs — the negative margin cancels the row's own padding so
+ * the checkbox lines up with them. Scoped here because in the Filters dialog
+ * there is nothing to line up with.
+ */
+#modal-preferences .filter-row {
+  margin: 0 -8px;
+}
+#modal-preferences label {
+  color: var(--text);
+}
+
+/*
+ * Scrolls its list, not its sheet, so Close stays on screen. `flex: 0 1 auto`
+ * rather than `1 1`: a list of two drafts must not stretch to push Close to
+ * the bottom of an otherwise empty sheet.
+ */
+.drafts-sheet {
+  overflow: hidden;
+}
+/* A `<p>`'s UA margin is added to the sheet's flex gap, the trap
+ * `#modal-context .modal-sheet` documents. */
+.drafts-sheet > p {
+  margin: 0;
+}
+.drafts-sheet .draft-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.draft-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.drafts-status.loading {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+}
+.drafts-status.loading::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+.draft-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 0 0 auto;
+  text-align: left;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.draft-row:focus-visible {
+  outline: none;
+  background: var(--bg-input);
+  border-color: var(--accent);
+}
+.draft-row-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.draft-row-sub,
+.draft-row-preview {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Save carries a spinner while the server answers. A button is not a flex
+ * container by default, and `.spinner-inline` is sized, not intrinsic. */
+#draft-name-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.bubble-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: flex;
+  align-items: flex-end;
+  padding: 16px calc(16px + var(--inset-right)) calc(16px + var(--inset-bottom))
+    calc(16px + var(--inset-left));
+  background: var(--scrim);
+}
+.bubble-menu-sheet {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg-raised);
+}
+.bubble-menu-item {
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/*
+ * Opening the sheet moves focus to the sheet itself so Escape can close it,
+ * never to an item, because a plain :focus highlight would make that item look
+ * already chosen the instant the menu appears. Paint the highlight only for the
+ * item an arrow key has moved to, and for an actual press.
+ */
+.bubble-menu-item:focus {
+  outline: none;
+}
+.bubble-menu-item:focus-visible,
+.bubble-menu-item:active {
+  outline: none;
+  background: var(--bg-input);
+}
+.bubble-menu-item.danger {
+  color: var(--danger);
+}
+/* A disabled item stays readable: it carries the reason it is disabled. */
+.bubble-menu-item:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+/*
+ * The desktop builds anchor the same actions at the pointer; see `anchorMenu`.
+ * The full-screen overlay stays to catch the click-outside dismissal and just
+ * stops painting a scrim.
+ */
+.bubble-menu.popup {
+  padding: 0;
+  background: transparent;
+}
+/*
+ * A flex column with auto-width items, not `width: 100%`: a percentage child
+ * makes the sheet's max-content resolve to its max-width in Chromium, so every
+ * popup comes out 320px wide whatever its labels say. Flex stretch still makes
+ * a short item's highlight span the row.
+ */
+.bubble-menu.popup .bubble-menu-sheet {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: 180px;
+  max-width: 320px;
+  padding: 0;
+  border-radius: 0;
+  border-color: var(--bg-input);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+/* The sheet is focused on open (that is what catches Escape); focus shows on
+ * the items, not as a ring around the sheet. */
+.bubble-menu.popup .bubble-menu-sheet:focus {
+  outline: none;
+}
+.bubble-menu.popup .bubble-menu-item {
+  width: auto;
+  padding: 6px 14px;
+  border-radius: 0;
+  font-size: 14px;
+}
+/* Hover highlight only in the popup: on the sheet a touch would leave a
+ * sticky highlight behind after the tap. */
+.bubble-menu.popup .bubble-menu-item:not(:disabled):hover {
+  background: var(--bg-input);
+}
+
+/* Collapsible tool calls / reasoning */
+.card {
+  align-self: stretch;
+  max-width: 100%;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--tool-bubble);
+  overflow: hidden;
+  position: relative;
+}
+.card.reasoning {
+  background: var(--reason-bubble);
+  border-color: var(--reason-line);
+}
+/* The same 6px/9px inset a bubble uses, so cards and bubbles read as one
+ * transcript. */
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  cursor: pointer;
+  user-select: none;
+}
+.card-head .chev {
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+  font-size: 11px;
+}
+.card.open .card-head .chev {
+  transform: rotate(90deg);
+}
+/* A card that never closes: no chevron is rendered and the row is not a
+ * toggle, but it is still a press-and-hold target. */
+.card.fixed .card-head {
+  cursor: default;
+}
+.card-head .label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.card-head .badge {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 8px;
+  background: var(--badge-bg);
+  color: var(--muted);
+}
+.card-head .badge.running {
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+}
+.card-head .badge.failed {
+  background: var(--danger-badge-bg);
+  color: var(--danger-badge-text);
+}
+.card-head .badge.ok {
+  background: var(--ok-badge-bg);
+  color: var(--ok-badge-text);
+}
+.card-body {
+  display: none;
+  padding: 0 9px 6px;
+  border-top: 1px solid var(--line);
+}
+.card.open .card-body {
+  display: block;
+}
+.card-body pre {
+  margin: 9px 0 0;
+  padding: 9px;
+  border-radius: 9px;
+  background: var(--code-bg);
+  max-height: 320px;
+  overflow: auto;
+  /* Not tappable: copying is a press-and-hold, same as a bubble. */
+  cursor: default;
+}
+/*
+ * An Edit tool call, shown as its diff. The rows are a grid whose one column is
+ * at least as wide as the longest line, so a short line's red or green band
+ * runs the full scroll width. Lines never wrap: a wrapped diff line reads as
+ * two changes.
+ */
+.diff-file {
+  margin: 9px 0 0;
+  padding: 7px 9px;
+  border-radius: 9px 9px 0 0;
+  background: var(--code-bg);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  word-break: break-all;
+}
+.diff {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr);
+  border-radius: 0 0 9px 9px;
+  background: var(--code-bg);
+  padding: 6px 0;
+  max-height: 320px;
+  overflow: auto;
+  cursor: default;
+}
+/* A pathless Edit has no header above it to square off against. */
+.diff:first-child {
+  margin-top: 9px;
+  border-radius: 9px;
+}
+/*
+ * An Edit card shows its whole diff, the opposite trade to `.card.context` and
+ * `.card.reasoning`: those hold context a reader skims, while a diff is the
+ * point of its card.
+ */
+.card.edit .diff {
+  max-height: none;
+}
+.diff-line {
+  padding: 0 9px;
+  white-space: pre;
+}
+.diff-line.del {
+  background: var(--danger-bg);
+  color: var(--danger-code-text);
+}
+.diff-line.add {
+  background: var(--diff-add-bg);
+  color: var(--diff-add-text);
+}
+/* A failed edit's message says something the diff cannot. */
+.card-body pre.diff-error {
+  color: var(--danger);
+}
+
+/*
+ * A Bash tool call, shown the way a terminal shows one. Two stacked blocks
+ * rather than one, so the command keeps its place at the top while a long log
+ * scrolls in its own window underneath.
+ */
+.shell {
+  margin: 9px 0 0;
+  padding: 9px;
+  border-radius: 9px;
+  background: var(--code-bg);
+  max-height: 220px;
+  overflow: auto;
+  cursor: default;
+}
+/* Squared off wherever something follows it: the notes line, or the output. */
+.shell:not(:last-child) {
+  border-radius: 9px 9px 0 0;
+}
+/*
+ * Commands wrap rather than scroll sideways, because a command off the right
+ * edge hides itself. Three depths carry the structure:
+ *
+ *   0      the first step, just after the `$`
+ *   1.2em  every step after it
+ *   3.2em  what wrapped, whichever step it belongs to
+ *
+ * Wrapped text hangs deeper than any step can start, so a fragment is never
+ * mistaken for a step (see `appendCommandText`).
+ */
+.shell-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding-left: 3.2em;
+  text-indent: -3.2em;
+}
+.shell-line.cont {
+  text-indent: -2em;
+}
+/* The last word and its `&&`, kept on the same visual line. */
+.shell-glue {
+  white-space: nowrap;
+}
+.shell-prompt {
+  color: var(--muted);
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* timeout, run_in_background, and anything else the call carried. */
+.shell-notes {
+  padding: 6px 9px;
+  background: var(--code-bg);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11.5px;
+  word-break: break-word;
+}
+.shell-notes:last-child {
+  border-radius: 0 0 9px 9px;
+}
+/* The output, joined to the block above it: close the seam and drop the top
+ * margin that would open one. */
+.card-body pre.shell-out {
+  margin-top: 0;
+  border-radius: 0 0 9px 9px;
+  border-top: 1px solid var(--line);
+}
+.card-body pre.shell-out.failed {
+  color: var(--danger-code-text);
+}
+
+.card-body pre.prose {
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  background: transparent;
+  padding: 0;
+  max-height: none;
+  overflow: visible;
+}
+/* Context and reasoning bodies run to thousands of words, so both keep a scroll
+ * box; without the cap one card expands to several thousand pixels. */
+.card.context .card-body pre.prose,
+.card.reasoning .card-body pre.prose {
+  max-height: 340px;
+  overflow: auto;
+}
+.card.reasoning .card-body {
+  border-top-color: var(--reason-line);
+}
+.card-body .sub {
+  margin-top: 9px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/*
+ * Markdown inside an agent bubble. `.bubble`'s `pre-wrap` would double every
+ * gap once real block elements are involved, so the markdown body opts out.
+ */
+.md {
+  white-space: normal;
+}
+.md > *:first-child {
+  margin-top: 0;
+}
+.md > *:last-child {
+  margin-bottom: 0;
+}
+.md p {
+  margin: 0 0 8px;
+}
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin: 12px 0 6px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+.md h3 {
+  font-size: calc(var(--chat-font-size) * 1.067);
+}
+.md h4 {
+  font-size: calc(var(--chat-font-size) * 0.967);
+}
+.md h5,
+.md h6 {
+  font-size: calc(var(--chat-font-size) * 0.9);
+  color: var(--muted);
+}
+.md ul,
+.md ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.md li {
+  margin: 3px 0;
+}
+/* A rich item holds real blocks, whose outer margins are spacing outside the
+ * item. Same rule, same reason, as `.md > *:last-child`. */
+.md li > :last-child {
+  margin-bottom: 0;
+}
+.md li > :first-child {
+  margin-top: 0;
+}
+/* `::marker` aligns to the item's first line box, and a block `.md-img` puts
+ * that at the caption — so the number rendered level with the caption instead of
+ * the picture. Only an image that starts an item is affected. */
+.md li .md-img:first-child {
+  display: inline-block;
+  vertical-align: top;
+}
+.md li::marker {
+  color: var(--muted);
+}
+.md blockquote {
+  margin: 0 0 8px;
+  padding: 2px 0 2px 10px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+}
+.md hr {
+  margin: 10px 0;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+.md pre {
+  margin: 8px 0;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: var(--code-bg);
+  overflow-x: auto;
+}
+.md code {
+  padding: 1px 4px;
+  border-radius: 5px;
+  background: var(--code-bg);
+  font-size: calc(var(--chat-font-size) * 0.8);
+}
+.md pre code {
+  padding: 0;
+  background: none;
+}
+/*
+ * `.md-table` is a horizontal scroll box: a column of long tokens cannot shrink
+ * below its longest one, and without somewhere to overflow it would push the
+ * bubble past the edge of the screen.
+ */
+.md-table {
+  margin: 8px 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  /* touch-action intersects down the tree: a nested scroller cannot re-enable
+   * a direction an ancestor withheld. See the matching value on `.bubble`. */
+  touch-action: pan-x pan-y;
+  /* Stated again here so a table stays selectable wherever markdown ends up
+   * rendered. */
+  user-select: text;
+  -webkit-user-select: text;
+}
+.md-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: calc(var(--chat-font-size) * 0.833);
+  table-layout: auto;
+}
+.md-table th,
+.md-table td {
+  padding: 6px 9px;
+  text-align: left;
+  vertical-align: top;
+  /* `break-word`, not `anywhere`: `anywhere` shrinks a column's minimum width
+   * to one character, so whole words break instead of the box scrolling. */
+  overflow-wrap: break-word;
+  /* `.bubble`'s `word-break: break-word` behaves like `overflow-wrap: anywhere`,
+   * inherits into every cell and wins over the line above, so it has to be
+   * switched off here. */
+  word-break: normal;
+  /* The floor keeps a many-column table from "fitting" as unreadable
+   * slivers. */
+  min-width: 4.5em;
+}
+/* Hashes, paths and URLs have no word boundaries, so mid-token breaking is
+ * right here. */
+.md-table code,
+.md-table a {
+  overflow-wrap: anywhere;
+}
+/* Headers wrap like the body does: a long header on one line forces a table
+ * that otherwise fits into a sideways scroll. */
+.md-table th {
+  background: var(--table-head-bg);
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+}
+.md-table tbody tr + tr td {
+  border-top: 1px solid var(--table-line);
+}
+.md-table tbody tr:nth-child(even) td {
+  background: var(--table-alt-bg);
+}
+.md-table th.center,
+.md-table td.center {
+  text-align: center;
+}
+.md-table th.right,
+.md-table td.right {
+  text-align: right;
+}
+.md-table code {
+  /* Cells are already tight; the default code background reads as clutter. */
+  padding: 0;
+  background: none;
+  color: var(--table-code);
+}
+
+/* Links open in the OS browser; the tap target is padded for fingers. */
+.md a {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  /* Long URLs must not overflow the bubble, but break at a slash or dot where
+     one is available rather than mid-token. */
+  overflow-wrap: anywhere;
+  /* Stated again so a link stays tappable in any bubble, selectable or not. */
+  -webkit-touch-callout: default;
+}
+.md a:active {
+  color: var(--link-active);
+}
+
+/* A file path an agent named, handed to an editor on tap. Dotted so it reads
+ * as a different kind of link from one that opens a browser. */
+.filepath {
+  color: var(--file-link);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  -webkit-touch-callout: default;
+}
+.filepath:active {
+  color: var(--file-link-active);
+  text-decoration: underline solid;
+}
+.filepath:focus-visible {
+  outline: 2px solid var(--file-link);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.diff-file .filepath {
+  color: inherit;
+}
+
+/* A rollout can hold an agent message with an empty text field, so the bubble
+ * holds its place with bouncing dots until the text arrives. */
+.bubble-loading {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 0 2px;
+}
+.bubble-loading .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: bounce 1.25s infinite ease-in-out;
+}
+.bubble-loading .dot:nth-child(2) {
+  animation-delay: 0.16s;
+}
+.bubble-loading .dot:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+/* Typing indicator */
+.typing {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 16px;
+}
+.typing .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: bounce 1.25s infinite ease-in-out;
+}
+.typing .dot:nth-child(2) {
+  animation-delay: 0.16s;
+}
+.typing .dot:nth-child(3) {
+  animation-delay: 0.32s;
+}
+.typing-label {
+  margin-left: 7px;
+  font-size: 12px;
+  color: var(--muted);
+}
+@keyframes bounce {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  35% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+
+.composer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px calc(10px + var(--inset-right)) calc(8px + var(--inset-bottom))
+    calc(10px + var(--inset-left));
+  background: var(--bg-raised);
+  border-top: 1px solid var(--line);
+}
+.composer textarea {
+  flex: 1 1 auto;
+  /*
+   * A textarea's automatic minimum size is its intrinsic width — `cols` worth
+   * of characters — so without this it refuses to shrink and pushes the
+   * buttons off the row when the stop button appears.
+   */
+  min-width: 0;
+  resize: none;
+  max-height: 140px;
+  min-height: 46px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  line-height: 1.35;
+}
+/*
+ * Three lines when Enter inserts one, one line when Enter sends: the box's shape
+ * is the only thing on the row that can say which key does what. 89px is exactly
+ * three lines of the 16px/1.35 text plus padding and border.
+ */
+.composer.multiline textarea {
+  min-height: 89px;
+}
+.composer textarea:focus {
+  outline: none;
+}
+.send-btn {
+  flex: 0 0 auto;
+  width: 50px;
+  min-height: 46px;
+  align-self: stretch;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 18px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.send-btn:disabled {
+  opacity: 0.45;
+}
+
+/*
+ * Stop, on the composer row and only while a turn is in flight. Danger colours
+ * rather than the accent, so the pair never reads as two ways to send. Send is
+ * disabled for exactly as long as this is on screen; `setTurnActive` does both.
+ */
+.stop-btn {
+  flex: 0 0 auto;
+  width: 46px;
+  min-height: 46px;
+  align-self: stretch;
+  border: 1px solid var(--danger-border);
+  border-radius: 12px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.stop-btn:active {
+  border-color: var(--danger);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--overlay-bg);
+  backdrop-filter: blur(2px);
+  padding: 24px;
+  text-align: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* The paragraph's own margin would stack on top of the flex gap. */
+.overlay p {
+  margin: 0;
+}
+/*
+ * The blocking overlay's spinner: the app icon, hopping. 56px is the smallest
+ * that still reads as a cow on a phone. No `prefers-reduced-motion` fallback,
+ * for the reason given over `.session-row.running`.
+ */
+.spinner {
+  position: relative;
+  flex: none;
+  width: 56px;
+  height: 56px;
+}
+.spinner-cow {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 100%;
+  animation: cow-hop 1s ease-in-out infinite;
+}
+@keyframes cow-hop {
+  0% {
+    transform: translateY(0) scale(1.12, 0.86);
+  }
+  16% {
+    transform: translateY(-16%) scale(0.93, 1.1);
+  }
+  50% {
+    transform: translateY(-40%) scale(1, 1);
+  }
+  84% {
+    transform: translateY(-14%) scale(0.95, 1.06);
+  }
+  100% {
+    transform: translateY(0) scale(1.12, 0.86);
+  }
+}
+/* The ground under the hop, shrinking as the cow leaves it, which is what says
+ * "up" rather than "smaller". Its own colour, because on the dark overlay there
+ * is nothing below black to cast onto. */
+.spinner-shadow {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: -6%;
+  height: 9%;
+  border-radius: 50%;
+  background: var(--spinner-shadow);
+  opacity: 0.34;
+  animation: cow-hop-shadow 1s ease-in-out infinite;
+}
+@keyframes cow-hop-shadow {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.34;
+  }
+  50% {
+    transform: scale(0.55);
+    opacity: 0.12;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.modal {
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--app-height);
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--scrim);
+  /* The insets go on the padding rather than the sheet, so a dialog is centred
+   * in the part of the screen the system bars are not covering — its Done row
+   * is the thing that would otherwise sit under the navigation bar. */
+  padding: calc(16px + var(--inset-top)) calc(16px + var(--inset-right))
+    calc(16px + var(--inset-bottom)) calc(16px + var(--inset-left));
+}
+.modal-sheet {
+  width: 100%;
+  max-width: 520px;
+  /* 86vh of the screen, but never more than the padding above leaves free: a
+   * taller sheet would overflow its own inset and go back under the bars. */
+  max-height: min(86vh, 100%);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 0;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+}
+.modal-sheet.tall {
+  height: min(86vh, 100%);
+}
+.modal-sheet h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.modal-actions.column {
+  flex-direction: column;
+}
+.modal-actions button {
+  flex: 1 1 auto;
+}
+
+/* A choice in a dialog that asks what a tap meant: a label with the subtitle
+ * that tells the two apart. */
+.choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  text-align: left;
+  padding: 12px 14px;
+}
+.choice-label {
+  font-size: 15px;
+  font-weight: 600;
+}
+.choice-sub {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.choice:disabled {
+  opacity: 0.5;
+}
+
+/* The sheet's flex gap provides the spacing; the paragraph's UA margins would
+ * add a second, larger gap. */
+#modal-openfile #openfile-path {
+  margin: 0;
+}
+
+/* Reserves its height before the size answer arrives, so the choices below do
+ * not jump under a thumb already on the way to one. */
+.openfile-size {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 16px;
+  margin: 0;
+}
+.openfile-size.warn {
+  color: var(--warn);
+}
+/* Text-sized sibling of `.spinner`, for a wait that sits inside a line rather
+ * than covering the screen. */
+.spinner-inline {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+.kv dt {
+  color: var(--muted);
+}
+.kv dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.scrollable {
+  flex: 1 1 auto;
+  min-height: 90px;
+  overflow: auto;
+  background: var(--code-bg);
+  border-radius: 10px;
+  padding: 10px;
+  margin: 0;
+}
+
+.drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  background: var(--drawer-scrim);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+.drawer-sheet {
+  width: min(84vw, 330px);
+  height: 100%;
+  overflow-y: auto;
+  /* Full height against the left edge, so the insets keep the last item clear
+   * of the navigation bar. */
+  padding: calc(18px + var(--inset-top)) 16px calc(18px + var(--inset-bottom))
+    calc(16px + var(--inset-left));
+  background: var(--bg-raised);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.drawer-sheet h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+.drawer-item {
+  text-align: left;
+  padding: 13px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.drawer-link {
+  color: var(--link);
+  overflow-wrap: anywhere;
+}
+.drawer-link:active {
+  color: var(--link-active);
+}
+/* Which item the arrows are on — the bubble menu's highlight, not a ring. */
+.drawer-item:focus-visible {
+  outline: none;
+  background: var(--bg-input);
+  border-color: var(--accent);
+}
+.drawer-item.danger {
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+.drawer-meta {
+  margin-top: auto;
+  padding-top: 14px;
+  font-size: 11.5px;
+  color: var(--muted);
+  /* The blocks are newline-separated strings; without this they collapse into
+   * one paragraph. `pre-line`, not `pre-wrap`, so the building code's
+   * indentation cannot leak onto the screen. */
+  white-space: pre-line;
+  word-break: break-word;
+}
+/* The `auto` margin pinning the pair to the sheet's bottom belongs to the block
+ * above only. The height is reserved because these numbers arrive late, and
+ * growing the block then would shove the items above it under a thumb. */
+.drawer-stats {
+  margin-top: 0;
+  padding-top: 6px;
+  min-height: 102px;
+}
+.drawer-stat + .drawer-stat {
+  margin-top: 7px;
+}
+.drawer-stat {
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+.drawer-stat-line {
+  display: flex;
+  gap: 8px;
+}
+.drawer-stat.cpu {
+  color: var(--stat-cpu);
+}
+.drawer-stat.memory {
+  color: var(--stat-memory);
+}
+.drawer-stat.disk {
+  color: var(--stat-disk);
+}
+.drawer-stat-label {
+  flex: 0 0 72px;
+  font-weight: 600;
+}
+.drawer-stat-value {
+  min-width: 0;
+}
+.drawer-stat-bar {
+  height: 5px;
+  margin-top: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+.drawer-stat-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+  transition: width 180ms ease-out;
+}
+.drawer-meta.loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.drawer-meta.loading::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+.error-panel {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-line);
+  color: var(--danger-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 45vh;
+  overflow: auto;
+  cursor: pointer;
+}
+/* The same panel saying something milder. Red and monospace would put a failed
+ * poll on the same footing as a refresh that failed with a reason, and there is
+ * nothing underneath to copy. */
+.error-panel.notice {
+  background: var(--badge-bg);
+  border-color: var(--line);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: default;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(28px + var(--inset-bottom));
+  transform: translateX(-50%);
+  z-index: 90;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.chat-img {
+  display: block;
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  cursor: zoom-in;
+  background: var(--code-bg);
+}
+.bubble-images {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.bubble-images:only-child,
+.bubble .role + .bubble-images {
+  margin-top: 0;
+}
+.md .chat-img {
+  margin: 8px 0;
+}
+/* The placeholder a path image occupies until its fetch answers. */
+.md-img {
+  display: block;
+  margin: 8px 0;
+  padding: 9px 10px;
+  border-radius: 9px;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  word-break: break-all;
+}
+.md-img.loaded {
+  padding: 0;
+  border: none;
+}
+/* The hold belongs to the app, so the WebView must not raise its own image
+ * callout (`preventDefault` on `contextmenu` is what stops it). Scoped to a
+ * placeholder's image rather than `.chat-img`: an image the session carried as
+ * bytes has no file on the server and gets no menu of ours. */
+.md-img img.chat-img {
+  -webkit-touch-callout: none;
+}
+.md-img.failed {
+  cursor: pointer;
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.md-img-retry {
+  margin-top: 4px;
+  color: var(--muted);
+}
+/* One image, over everything, gone on a tap. Above the bubble menu (100). */
+.image-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The backdrop covers the whole screen, bars included, but the image stays
+   * out from under them so no edge of a screenshot is behind a bar. */
+  padding: calc(16px + var(--inset-top)) calc(16px + var(--inset-right))
+    calc(16px + var(--inset-bottom)) calc(16px + var(--inset-left));
+  background: var(--overlay-bg);
+  cursor: zoom-out;
+  /* The pinch is the app's, not the WebView's: without this the browser claims
+   * the two-finger gesture and the pointer events stop mid-drag. `overflow`
+   * clips a zoomed picture to the screen instead of stretching the overlay. */
+  touch-action: none;
+  overflow: hidden;
+}
+.image-viewer.zoomed {
+  cursor: grab;
+}
+.image-viewer img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 6px;
+  /* `applyZoom` measures the translation from the untransformed centre, so the
+   * origin has to stay there. */
+  transform-origin: center;
+  /* No `will-change: transform`: it makes Chromium pin the raster scale, so
+   * every zoom above 1 comes out blurred. `settle` keeps the pinch cheap. */
+  -webkit-user-drag: none;
+}
