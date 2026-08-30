@@ -1,6 +1,6 @@
 [package]
 name = "pabloagent"
-version = "0.1.0"
+version = "1.0.0"
 description = "Pablo Agent, Codex chat client over SSH"
 authors = ["simon141"]
 edition = "2021"
