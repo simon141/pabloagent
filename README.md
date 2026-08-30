@@ -16,6 +16,15 @@ a single server at the same time.
 
 It started as complete hands-off experiment built from Claude Code and Codex, then when Pablo Agent became capable enough, development moved completely into building Pablo with Pablo itself!
 
+## Downloads
+
+Latest build from `main`:
+
+- [Android arm64 APK](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-android-arm64.apk)
+- [Windows x86_64 executable](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-windows-x86_64.exe)
+- [Linux x86_64 binary](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-linux-x86_64)
+- [Linux x86_64 AppImage](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-linux-x86_64.AppImage)
+
 ## Server requirements
 
 Pablo needs a Linux host with:
