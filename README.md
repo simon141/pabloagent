@@ -141,6 +141,20 @@ The exact APK filename can vary with the Tauri Android tooling. If the path
 above does not exist, use the release APK under
 `src-tauri/gen/android/app/build/outputs/apk/`.
 
+### GitHub builds
+
+Each push to `main` publishes Android, Linux, and Windows release builds to the
+[continuous prerelease](https://github.com/simon141/pabloagent/releases/tag/continuous).
+Pull requests receive a comment with temporary artifact links.
+
+To publish a versioned release, set the same version in `package.json` and
+`src-tauri/tauri.conf.json`, commit it, then push a matching tag:
+
+```bash
+git tag v0.1.1
+git push origin v0.1.1
+```
+
 ## Project structure
 
 - `src/` contains application state, session readers, and transcript rendering.

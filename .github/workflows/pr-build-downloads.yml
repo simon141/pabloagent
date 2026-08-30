@@ -1,0 +1,73 @@
+name: PR build downloads
+
+on:
+  workflow_run:
+    workflows: ["Release builds"]
+    types: [completed]
+
+permissions:
+  actions: read
+  issues: write
+
+jobs:
+  comment:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const pulls = run.pull_requests;
+            if (!pulls.length) {
+              core.notice('No pull request is associated with this run.');
+              return;
+            }
+
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+            const labels = {
+              'pablo-android-arm64': 'Android arm64 APK',
+              'pablo-linux-x86_64': 'Linux x86_64 binary and AppImage',
+              'pablo-windows-x86_64': 'Windows x86_64 executable',
+            };
+            const links = artifacts
+              .filter((artifact) => labels[artifact.name])
+              .map((artifact) => `- [${labels[artifact.name]}](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${run.id}/artifacts/${artifact.id})`)
+              .join('\n');
+            const marker = '<!-- pablo-pr-build-downloads -->';
+            const result = run.conclusion === 'success'
+              ? 'Release builds completed. Downloads expire after 14 days.'
+              : `Release builds finished with ${run.conclusion || run.status}. Available outputs are below.`;
+            const body = `${marker}\n${result}\n\n${links || `No build artifacts were uploaded. [Open the run](${run.html_url}).`}`;
+
+            for (const pull of pulls) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pull.number,
+                per_page: 100,
+              });
+              const previous = comments.find((comment) => comment.body?.includes(marker));
+              if (previous) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: previous.id,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pull.number,
+                  body,
+                });
+              }
+            }

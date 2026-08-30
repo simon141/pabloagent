@@ -1,5 +1,3 @@
-# The release workflow is manual-only to save quota. These checks still run on
-# pull requests and main.
 name: Checks
 
 on:

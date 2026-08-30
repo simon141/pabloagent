@@ -1,44 +1,21 @@
 name: Release builds
 
-# Temporarily manual-only to preserve GitHub Actions minutes. Restore the push
-# and pull_request triggers when release builds return.
 on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: release-builds-${{ github.ref }}
+  group: release-builds-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  prepare-release:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Prepare the continuous release
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view continuous --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh api --method PATCH \
-              "repos/$GITHUB_REPOSITORY/git/refs/tags/continuous" \
-              -f sha="$GITHUB_SHA" -F force=true
-            gh release edit continuous --repo "$GITHUB_REPOSITORY" \
-              --prerelease --title "Continuous build" \
-              --notes "Build artifacts from main ($GITHUB_SHA)."
-          else
-            gh release create continuous --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --prerelease \
-              --title "Continuous build" \
-              --notes "Build artifacts from main ($GITHUB_SHA)."
-          fi
-
   android:
-    needs: prepare-release
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -69,31 +46,36 @@ jobs:
       - name: Point Tauri at the runner's NDK
         run: echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
 
-      - name: Create a throwaway release keystore
-        # The real signing key never leaves the maintainer's machine. CI only
-        # needs a key to exercise minification, resource shrinking, and signing.
+      - name: Configure release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.PABLO_ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.PABLO_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.PABLO_ANDROID_KEY_PASSWORD }}
         run: |
-          keytool -genkeypair -noprompt \
-            -keystore "$RUNNER_TEMP/ci.jks" -alias release \
-            -storepass ci-only -keypass ci-only \
-            -keyalg RSA -keysize 2048 -validity 30 \
-            -dname "CN=CI, O=CI, C=AU"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf %s "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/pablo-release.jks"
+          else
+            keytool -genkeypair -noprompt \
+              -keystore "$RUNNER_TEMP/pablo-release.jks" -storetype JKS \
+              -alias release -storepass ci-only -keypass ci-only \
+              -keyalg RSA -keysize 4096 -validity 30 \
+              -dname "CN=Pablo CI, O=Pablo, C=AU"
+            KEYSTORE_PASSWORD=ci-only
+            KEY_PASSWORD=ci-only
+          fi
           cat > src-tauri/gen/android/keystore.properties <<EOF
-          storeFile=$RUNNER_TEMP/ci.jks
+          storeFile=$RUNNER_TEMP/pablo-release.jks
           keyAlias=release
-          storePassword=ci-only
-          keyPassword=ci-only
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
           EOF
 
       - run: npm ci
 
       - name: Check the rollout renderer
-        # The renderer is the whole reader now, and its id-stability property is
-        # invisible to type checking.
         run: npm run check:rollout
 
-      - name: Install the Linux libraries the host build needs
-        # `cargo test` links the desktop Tauri stack for the host.
+      - name: Install Linux libraries for Rust tests
         timeout-minutes: 10
         run: |
           sudo apt-get update
@@ -101,36 +83,27 @@ jobs:
             libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev \
             libxdo-dev libayatana-appindicator3-dev tmux
 
-      - name: Test the transport and the remote shell
-        # Runs the remote side for real against an in-process SSH server.
+      - name: Test the transport and remote shell
         run: cd src-tauri && cargo test
 
       - name: Build the release APK
         run: npm run android:build
 
-      - name: Verify ABIs and size
+      - name: Verify the APK
         run: |
-          apk=$(find src-tauri/gen/android/app/build/outputs/apk \
-                  -name '*release*.apk' | head -1)
-          echo "Checking $apk"
+          apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk' | head -1)
           ./scripts/verify-apk.sh "$apk"
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          cp "$apk" "$RUNNER_TEMP/release-assets/pabloagent-android-arm64.apk"
 
-      - name: Upload the APK to the continuous release
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          apk=$(find src-tauri/gen/android/app/build/outputs/apk \
-                  -name '*release*.apk' | head -1)
-          cp "$apk" "$RUNNER_TEMP/pabloagent-android-arm64.apk"
-          gh release upload continuous \
-            "$RUNNER_TEMP/pabloagent-android-arm64.apk" \
-            --clobber --repo "$GITHUB_REPOSITORY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pablo-android-arm64
+          path: ${{ runner.temp }}/release-assets/pabloagent-android-arm64.apk
+          if-no-files-found: error
+          retention-days: 14
 
   linux:
-    # Temporarily disabled to conserve the monthly Actions quota.
-    if: ${{ false }}
-    needs: prepare-release
     runs-on: ubuntu-22.04
     timeout-minutes: 40
 
@@ -161,51 +134,34 @@ jobs:
 
       - run: npm ci
 
-      - name: Build portable Linux AppImage
+      - name: Build the release AppImage
         run: npm run tauri build -- --bundles appimage
 
-      - name: Verify the Linux outputs
+      - name: Verify and package Linux outputs
         run: |
           file src-tauri/target/release/pabloagent | grep -F 'ELF 64-bit'
-          appimage=$(find src-tauri/target/release/bundle/appimage \
-                       -name '*.AppImage' | head -1)
+          appimage=$(find src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -1)
           appimage=$(realpath "$appimage")
-          mkdir -p "$RUNNER_TEMP/appimage-check"
+          mkdir -p "$RUNNER_TEMP/appimage-check" "$RUNNER_TEMP/release-assets"
           cd "$RUNNER_TEMP/appimage-check"
           "$appimage" --appimage-extract \
             'usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitGPUProcess'
-          test -x \
-            squashfs-root/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitGPUProcess
-
-      - name: Upload Linux files to the continuous release
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          appimage=$(find src-tauri/target/release/bundle/appimage \
-                       -name '*.AppImage' | head -1)
-          install -m 755 src-tauri/target/release/pabloagent \
-            "$RUNNER_TEMP/pabloagent-linux-x86_64"
+          test -x squashfs-root/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitGPUProcess
+          install -m 755 "$GITHUB_WORKSPACE/src-tauri/target/release/pabloagent" \
+            "$RUNNER_TEMP/release-assets/pabloagent-linux-x86_64"
           install -m 755 "$appimage" \
-            "$RUNNER_TEMP/pabloagent-linux-x86_64.AppImage"
-          gh release upload continuous \
-            "$RUNNER_TEMP/pabloagent-linux-x86_64" \
-            "$RUNNER_TEMP/pabloagent-linux-x86_64.AppImage" \
-            --clobber --repo "$GITHUB_REPOSITORY"
+            "$RUNNER_TEMP/release-assets/pabloagent-linux-x86_64.AppImage"
 
-      - name: Add download links to the run summary
-        if: github.event_name == 'push'
-        run: |
-          {
-            echo "## Downloads"
-            echo
-            echo "- [Linux x86_64 AppImage](https://github.com/$GITHUB_REPOSITORY/releases/download/continuous/pabloagent-linux-x86_64.AppImage)"
-            echo "- [Linux x86_64 binary](https://github.com/$GITHUB_REPOSITORY/releases/download/continuous/pabloagent-linux-x86_64)"
-            echo "- [Continuous release](https://github.com/$GITHUB_REPOSITORY/releases/tag/continuous)"
-          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pablo-linux-x86_64
+          path: |
+            ${{ runner.temp }}/release-assets/pabloagent-linux-x86_64
+            ${{ runner.temp }}/release-assets/pabloagent-linux-x86_64.AppImage
+          if-no-files-found: error
+          retention-days: 14
 
   windows:
-    needs: prepare-release
     runs-on: ubuntu-22.04
     timeout-minutes: 30
 
@@ -239,19 +195,72 @@ jobs:
 
       - run: npm ci
 
-      - name: Cross-compile portable Windows executable
+      - name: Cross-compile the portable Windows executable
         run: npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc --no-bundle
 
-      - name: Verify the Windows executable
-        run: file src-tauri/target/x86_64-pc-windows-msvc/release/pabloagent.exe | grep -F 'PE32+ executable'
+      - name: Verify and package the Windows executable
+        run: |
+          executable=src-tauri/target/x86_64-pc-windows-msvc/release/pabloagent.exe
+          file "$executable" | grep -F 'PE32+ executable'
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          cp "$executable" "$RUNNER_TEMP/release-assets/pabloagent-windows-x86_64.exe"
 
-      - name: Upload the Windows executable to the continuous release
-        if: github.event_name == 'push'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pablo-windows-x86_64
+          path: ${{ runner.temp }}/release-assets/pabloagent-windows-x86_64.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    if: github.event_name == 'push'
+    needs: [android, linux, windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Validate the release tag version
+        if: github.ref_type == 'tag'
+        run: |
+          test "$GITHUB_REF_NAME" = "v$(node -p "require('./package.json').version")"
+          test "$GITHUB_REF_NAME" = "v$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json')).version")"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp src-tauri/target/x86_64-pc-windows-msvc/release/pabloagent.exe \
-            "$RUNNER_TEMP/pabloagent-windows-x86_64.exe"
-          gh release upload continuous \
-            "$RUNNER_TEMP/pabloagent-windows-x86_64.exe" \
-            --clobber --repo "$GITHUB_REPOSITORY"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            release="$GITHUB_REF_NAME"
+            if gh release view "$release" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release edit "$release" --repo "$GITHUB_REPOSITORY" --title "$release"
+            else
+              gh release create "$release" --repo "$GITHUB_REPOSITORY" \
+                --verify-tag --title "$release" --generate-notes
+            fi
+          else
+            release=continuous
+            if gh release view "$release" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh api --method PATCH \
+                "repos/$GITHUB_REPOSITORY/git/refs/tags/$release" \
+                -f sha="$GITHUB_SHA" -F force=true
+              gh release edit "$release" --repo "$GITHUB_REPOSITORY" \
+                --prerelease --title "Continuous build" \
+                --notes "Build artifacts from main ($GITHUB_SHA)."
+            else
+              gh release create "$release" --repo "$GITHUB_REPOSITORY" \
+                --target "$GITHUB_SHA" --prerelease --title "Continuous build" \
+                --notes "Build artifacts from main ($GITHUB_SHA)."
+            fi
+          fi
+          gh release upload "$release" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
