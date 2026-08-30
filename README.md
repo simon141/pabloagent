@@ -78,7 +78,8 @@ at once.
   completed turn remains on the server.
 
 opencode sessions cannot be deleted or rewound because Pablo treats its database
-as read-only. Native session rename is currently available for Codex only.
+as read-only. Session names are Pablo-side labels stored in a sidecar file;
+native CLI session names are neither read nor written.
 
 ## Security model
 

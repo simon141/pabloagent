@@ -772,31 +772,6 @@
       </div>
     </div>
 
-    <div id="modal-rename" class="modal" hidden>
-      <div class="modal-sheet">
-        <h2>Rename chat</h2>
-        <label
-          >Name
-          <input
-            id="rename-name"
-            type="text"
-            maxlength="120"
-            autocapitalize="sentences"
-            autocomplete="off"
-          />
-        </label>
-        <p class="muted small">
-          Saved by the agent harness on the server. PabloAgent does not keep
-          a separate session name.
-        </p>
-        <div id="rename-error" class="error-panel" hidden></div>
-        <div class="modal-actions">
-          <button id="rename-cancel" type="button" class="ghost">Cancel</button>
-          <button id="rename-save" type="button" class="primary">Rename</button>
-        </div>
-      </div>
-    </div>
-
     <!-- The sidecar's label: a title override in this app's own record, never
          in anything a CLI reads. The original title stays visible here because
          the label replaces it everywhere else. -->

@@ -426,75 +426,10 @@ fn opencode_list_sql() -> String {
 
 const OPENCODE_CACHE_DIR: &str = "${XDG_CACHE_HOME:-$HOME/.cache}/pabloagent/opencode";
 
-fn codex_app_server_request(codex_bin: &str, id: u64, request: serde_json::Value) -> String {
-    let initialize = serde_json::json!({
-        "method": "initialize",
-        "id": 0,
-        "params": {
-            "clientInfo": {
-                "name": "pabloagent",
-                "title": "PabloAgent",
-                "version": env!("CARGO_PKG_VERSION")
-            }
-        }
-    });
-    let initialized = serde_json::json!({"method": "initialized", "params": {}});
-    let client = "\
-coproc CODEX_SERVER { \"$1\" app-server 2>/dev/null; }\n\
-server_pid=$CODEX_SERVER_PID\n\
-printf '%s\\n' \"$2\" \"$3\" \"$4\" >&\"${CODEX_SERVER[1]}\"\n\
-while IFS= read -r -t 10 line <&\"${CODEX_SERVER[0]}\"; do\n\
-  if [[ $line =~ \\\"id\\\"[[:space:]]*:[[:space:]]*$5([,}]) ]]; then\n\
-    printf '%s\\n' \"$line\"\n\
-    kill \"$server_pid\" 2>/dev/null || true\n\
-    wait \"$server_pid\" 2>/dev/null || true\n\
-    exit 0\n\
-  fi\n\
-done\n\
-kill \"$server_pid\" 2>/dev/null || true\n\
-wait \"$server_pid\" 2>/dev/null || true\n\
-printf '%s\\n' 'Codex app-server did not answer within 10 seconds' >&2\n\
-exit 1";
-    format!(
-        "bash -lc {} _ {} {} {} {} {}",
-        quote(client),
-        quote(codex_bin),
-        quote(&initialize.to_string()),
-        quote(&initialized.to_string()),
-        quote(&request.to_string()),
-        id,
-    )
-}
-
 pub fn list_sessions_command(opencode_bin: &str) -> String {
-    list_sessions_command_with_codex(opencode_bin, "")
-}
-
-pub fn list_sessions_command_with_codex(opencode_bin: &str, codex_bin: &str) -> String {
     let turns = turn_records_command();
     let opencode = quote(opencode_bin);
     let sql = quote(&opencode_list_sql());
-    let codex_names = if codex_bin.trim().is_empty() {
-        String::new()
-    } else {
-        // Only the stable top-level source kinds: newer subagent-only kinds
-        // would make an older app-server reject the whole request.
-        let source_kinds = ["cli", "vscode", "exec", "appServer"];
-        let request = serde_json::json!({
-            "method": "thread/list",
-            "id": 91,
-            "params": {
-                "limit": SESSION_LIMIT,
-                "archived": false,
-                "sourceKinds": source_kinds
-            }
-        });
-        let native = codex_app_server_request(codex_bin, 91, request);
-        format!(
-            "native_names=$({native} || true)\n\
-             [ -n \"$native_names\" ] && printf 'PT_N\\t%s\\n' \"$native_names\"\n"
-        )
-    };
     let meta = session_meta_records_command();
     format!(
         "tab=$(printf '\\t')\n\
@@ -545,36 +480,8 @@ pub fn list_sessions_command_with_codex(opencode_bin: &str, codex_bin: &str) -> 
              printf 'PT_M\\t%s\\n' \"$meta\"\n\
              printf 'PT_P\\t%s\\n' \"$meta\"\n\
            done\n\
-         fi\n\
-         {codex_names}"
+         fi\n"
     )
-}
-
-pub fn rename_session_command(
-    harness: Harness,
-    thread_id: &str,
-    name: &str,
-    codex_bin: &str,
-) -> Result<String, String> {
-    if harness != Harness::Codex {
-        return Err(format!(
-            "{} does not expose native session rename",
-            harness.tag()
-        ));
-    }
-    let thread_id = thread_id.trim();
-    let name = name.trim();
-    if thread_id.is_empty() || name.is_empty() {
-        return Err("a session id and name are required".to_string());
-    }
-    let request = serde_json::json!({
-        "method": "thread/name/set",
-        "id": 92,
-        "params": {"threadId": thread_id, "name": name}
-    });
-    let mut cmd = session_busy_guard(harness, thread_id, "")?;
-    cmd.push_str(&codex_app_server_request(codex_bin, 92, request));
-    Ok(cmd)
 }
 
 const SESSION_META_DIR: &str = "${XDG_CACHE_HOME:-$HOME/.cache}/pabloagent/session-meta";
@@ -1019,33 +926,6 @@ pub fn parse_sessions(output: &str) -> Vec<SessionSummary> {
                     .unwrap_or_else(|| dig_string(rest, "aiTitle"));
                 if !title.trim().is_empty() {
                     current.title = Some(title);
-                }
-            }
-        } else if let Some(rest) = line.strip_prefix("PT_N\t") {
-            // Codex's native thread names, joined onto the file rows already
-            // read; nothing is mirrored onto the device.
-            let Ok(value) = serde_json::from_str::<serde_json::Value>(rest) else {
-                continue;
-            };
-            let Some(rows) = value.pointer("/result/data").and_then(|v| v.as_array()) else {
-                continue;
-            };
-            for row in rows {
-                let Some(id) = row.get("id").and_then(|v| v.as_str()) else {
-                    continue;
-                };
-                let Some(name) = row
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .filter(|name| !name.trim().is_empty())
-                else {
-                    continue;
-                };
-                if let Some(session) = out
-                    .iter_mut()
-                    .find(|s| s.harness == Harness::Codex && s.id == id)
-                {
-                    session.title = Some(name.to_string());
                 }
             }
         } else if let Some(rest) = line.strip_prefix("PT_C\t") {
@@ -1685,9 +1565,8 @@ mod tests {
     fn changing_a_session_is_guarded_by_the_turn_locks() {
         let del = delete_session_command(Harness::Claude, "/h/p/-w/id.jsonl", "s-1").unwrap();
         let rew = rewind_session_command(Harness::Pi, "/h/s/w/1_s-1.jsonl", 3, 9, "s-1").unwrap();
-        let ren = rename_session_command(Harness::Codex, "s-1", "a name", "codex").unwrap();
 
-        for (what, cmd) in [("delete", &del), ("rewind", &rew), ("rename", &ren)] {
+        for (what, cmd) in [("delete", &del), ("rewind", &rew)] {
             assert!(
                 cmd.contains("/pabloagent\""),
                 "{what} must resolve the cache root: {cmd}"
@@ -1712,16 +1591,13 @@ mod tests {
         // The lock's name is the one `claim_session` mkdirs, per harness.
         assert!(del.contains("$r/locks/claude-s-1"), "{del}");
         assert!(rew.contains("$r/locks/pi-s-1"), "{rew}");
-        assert!(ren.contains("$r/locks/codex-s-1"), "{ren}");
         // Delete and rewind know the session's path too, so a first turn that
         // has resolved its rollout but taken no lock is matched on that.
         assert!(del.contains("[ \"$ro\" = '/h/p/-w/id.jsonl' ]"), "{del}");
         assert!(rew.contains("[ \"$ro\" = '/h/s/w/1_s-1.jsonl' ]"), "{rew}");
-        // A rename only ever has the id, so it does not pretend to have a path.
-        assert!(!ren.contains("[ \"$ro\" = "), "{ren}");
-        // All three read the rollout regardless, because a live turn that has
-        // not yet named its session is one none of them may clear.
-        for (what, cmd) in [("delete", &del), ("rewind", &rew), ("rename", &ren)] {
+        // Both read the rollout regardless, because a live turn that has
+        // not yet named its session is one neither of them may clear.
+        for (what, cmd) in [("delete", &del), ("rewind", &rew)] {
             assert!(cmd.contains("$td0/rollout"), "{what}: {cmd}");
             assert!(
                 cmd.contains("if [ -z \"$ro\" ] && [ -z \"$id\" ]; then"),
@@ -1733,15 +1609,10 @@ mod tests {
             rew.find("PT_BUSY").unwrap() < rew.find("rewind-bak").unwrap(),
             "{rew}"
         );
-        assert!(
-            ren.find("PT_BUSY").unwrap() < ren.find("app-server").unwrap(),
-            "{ren}"
-        );
 
         // An id that could not be a lock directory's name never becomes one.
         assert!(delete_session_command(Harness::Codex, "/h/s/r.jsonl", "../../x").is_err());
         assert!(rewind_session_command(Harness::Codex, "/h/s/r.jsonl", 1, 9, "a b").is_err());
-        assert!(rename_session_command(Harness::Codex, "a;rm -rf /", "n", "codex").is_err());
 
         // A session whose header would not parse has no id, and is guarded by
         // its path alone rather than refused.
@@ -1868,26 +1739,7 @@ mod tests {
     }
 
     #[test]
-    fn rename_uses_codex_native_thread_names_only() {
-        let cmd = rename_session_command(
-            Harness::Codex,
-            "019fac00-0000-7000-8000-000000000001",
-            "Fix the login",
-            "/opt/codex",
-        )
-        .unwrap();
-        assert!(cmd.contains("\"$1\" app-server"), "{cmd}");
-        assert!(cmd.contains("'/opt/codex'"), "{cmd}");
-        assert!(cmd.contains("thread/name/set"), "{cmd}");
-        assert!(cmd.contains("Fix the login"), "{cmd}");
-        assert!(cmd.contains("read -r -t 10"), "{cmd}");
-        assert!(!cmd.contains("sleep .35"), "{cmd}");
-        assert!(rename_session_command(Harness::Claude, "id", "name", "codex").is_err());
-        assert!(rename_session_command(Harness::Codex, "", "name", "codex").is_err());
-    }
-
-    #[test]
-    fn a_codex_row_uses_its_native_saved_name() {
+    fn an_unknown_record_prefix_is_ignored() {
         let id = "019fac00-0000-7000-8000-000000000001";
         let output = format!(
             "PT_S\tcodex\t10\t/h/rollout-{id}.jsonl\n\
@@ -1897,7 +1749,7 @@ mod tests {
         );
         let sessions = parse_sessions(&output);
         assert_eq!(sessions.len(), 1);
-        assert_eq!(sessions[0].title.as_deref(), Some("Saved name"));
+        assert_eq!(sessions[0].title, None);
         assert_eq!(sessions[0].preview, "Original prompt");
     }
 

@@ -20,9 +20,9 @@ use pabloagent_lib::testing::{
     close_session_command, connect_full, delete_session_command, download_remote_file_command,
     list_sessions_command, mark_session_read_command, parse_pretty_session, parse_sessions,
     parse_turn_poll, poll_turn_command, pretty_session_command, read_rollout_command,
-    refused_because_busy, rename_session_command, rewind_session_command, start_turn_command,
-    stop_turn_command, ConnectOutcome, Connection, Diagnostics, Download, Harness, Header,
-    KnownHost, Progress, SessionSummary, SshSettings, TurnPoll, TurnRequest, TurnState,
+    refused_because_busy, rewind_session_command, start_turn_command, stop_turn_command,
+    ConnectOutcome, Connection, Diagnostics, Download, Harness, Header, KnownHost, Progress,
+    SessionSummary, SshSettings, TurnPoll, TurnRequest, TurnState,
 };
 use russh::keys::ssh_key::{HashAlg, PrivateKey};
 use russh::server::{Auth, ChannelOpenHandle, Handler, Msg, Server, Session};
@@ -1909,22 +1909,6 @@ async fn changing_a_session_is_refused_while_a_turn_writes_it(name: &str, harnes
             rewind_session_command(harness, &path, 1, total, &thread),
         )
         .await;
-    // Only codex has a native rename at all, and its guard runs before the
-    // `codex app-server` the stub does not implement — so a refusal is the only
-    // outcome this can assert, which is the one under test.
-    let rename = if harness == Harness::Codex {
-        let codex_bin = remote.connection.settings().codex_bin.clone();
-        Some(
-            remote
-                .run_guarded(
-                    "rename session",
-                    rename_session_command(harness, &thread, "a new name", &codex_bin),
-                )
-                .await,
-        )
-    } else {
-        None
-    };
     let still_there = std::fs::read_to_string(&path).unwrap_or_default();
     let no_backup = !std::path::Path::new(&format!("{path}.rewind-bak")).exists();
 
@@ -1958,13 +1942,6 @@ async fn changing_a_session_is_refused_while_a_turn_writes_it(name: &str, harnes
         Some("busyowner1"),
         "the rewind must be refused before it counts a line: {rewind:?}"
     );
-    if let Some(rename) = rename {
-        assert_eq!(
-            refused_because_busy(&rename),
-            Some("busyowner1"),
-            "the rename must be refused before codex is even started: {rename:?}"
-        );
-    }
     assert!(
         still_there.contains("sleep-forever"),
         "a refused operation must leave the session exactly as it was: {still_there}"

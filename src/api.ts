@@ -95,12 +95,6 @@ export const rewindSession = (
     threadId,
   });
 
-export const renameSession = (
-  threadId: string,
-  name: string,
-  harness: Harness,
-) => invoke<void>("rename_session", { threadId, name, harness });
-
 export const markSessionRead = (
   harness: Harness,
   threadId: string,

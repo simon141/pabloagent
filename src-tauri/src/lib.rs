@@ -12,8 +12,8 @@ pub mod testing {
         close_session_command, delete_session_command, download_remote_file_command,
         list_sessions_command, mark_session_read_command, parse_pretty_session, parse_sessions,
         parse_turn_poll, poll_turn_command, pretty_session_command, read_rollout_command,
-        refused_because_busy, rename_session_command, rewind_session_command, start_turn_command,
-        stop_turn_command, Harness, SessionSummary, TurnPoll, TurnRequest, TurnState, SCRIPT,
+        refused_because_busy, rewind_session_command, start_turn_command, stop_turn_command,
+        Harness, SessionSummary, TurnPoll, TurnRequest, TurnState, SCRIPT,
     };
     pub use crate::ssh::{connect_full, ByteSink, ConnectOutcome, Connection, HostKeyPrompt};
     pub use crate::store::{KnownHost, SshSettings};
@@ -365,11 +365,10 @@ async fn list_sessions(state: State<'_, AppState>) -> Result<Vec<SessionSummary>
     let mut guard = state.connected("the session list").await?;
     let connection = guard.as_mut().expect("checked");
     let opencode_bin = connection.settings().opencode_bin.clone();
-    let codex_bin = connection.settings().codex_bin.clone();
     let output = connection
         .run_ok(
             "list sessions",
-            &remote::list_sessions_command_with_codex(&opencode_bin, &codex_bin),
+            &remote::list_sessions_command(&opencode_bin),
         )
         .await?;
     let sessions = remote::parse_sessions(&output);
@@ -750,44 +749,6 @@ async fn pretty_session_file(
     Ok(PrettySessionFile { path: pretty, size })
 }
 
-#[tauri::command]
-async fn rename_session(
-    state: State<'_, AppState>,
-    thread_id: String,
-    name: String,
-    harness: Option<remote::Harness>,
-) -> Result<(), String> {
-    let harness = harness.unwrap_or_default();
-    let mut guard = state.connected("renaming a session").await?;
-    let connection = guard.as_mut().expect("checked");
-    let codex_bin = connection.settings().codex_bin.clone();
-    let command = remote::rename_session_command(harness, &thread_id, &name, &codex_bin)?;
-    let output = connection.run_ok("rename session", &command).await?;
-    if let Some(turn) = remote::refused_because_busy(&output) {
-        state.diagnostics.push(
-            "remote",
-            format!("refused to rename session {thread_id}: turn {turn} is running"),
-        );
-        return Err(remote::busy_session_message("renamed", turn));
-    }
-    let response = serde_json::from_str::<serde_json::Value>(output.trim())
-        .map_err(|e| format!("Codex returned an unreadable rename response: {e}"))?;
-    if let Some(error) = response.get("error") {
-        return Err(error
-            .get("message")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Codex refused to rename the session")
-            .to_string());
-    }
-    if response.get("result").is_none() {
-        return Err("Codex did not confirm the session rename".to_string());
-    }
-    state
-        .diagnostics
-        .push("remote", format!("renamed codex session {thread_id}"));
-    Ok(())
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct StartedTurn {
@@ -949,7 +910,6 @@ pub fn run() {
             cancel_download,
             remote_file_size,
             pretty_session_file,
-            rename_session,
             start_turn,
             poll_turn,
             stop_turn,

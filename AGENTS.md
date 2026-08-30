@@ -20,7 +20,9 @@ configuration.
 - Show unknown session entries as generic cards. Drop only proven duplicates.
 - Keep local prompt echoes until a new user-message ID arrives. Repeated prompt
   text is not an identity.
-- Guard delete, rename, and rewind in the same remote command as the mutation.
+- Guard delete and rewind in the same remote command as the mutation.
+- Session names are Pablo sidecar labels only. Never spawn `codex app-server`:
+  it is too expensive for the session-list poll.
 - Treat opencode's database as read-only. opencode sessions cannot be deleted or
   rewound.
 - Rewind only the session record. Keep one `.rewind-bak` tail and leave

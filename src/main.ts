@@ -1462,7 +1462,7 @@ function renderChatSessionPill(): void {
   const sub = $("chat-session-sub");
   const button = $<HTMLButtonElement>("chat-session");
   const current = sessions.find(isOpenSession);
-  const renameable = chat.harness === "codex" && chat.threadId !== null;
+  const labelable = chat.threadId !== null;
   const closed = Boolean(current && current.closedAt !== null);
 
   button.classList.toggle("closed", closed);
@@ -1485,18 +1485,10 @@ function renderChatSessionPill(): void {
   button.disabled = false;
   button.setAttribute(
     "aria-label",
-    renameable ? "Rename session" : "Session title",
+    labelable ? "Label session" : "Session title",
   );
-  sub.textContent = renameable ? "Tap to rename" : "";
+  sub.textContent = labelable ? "Tap to label" : "";
   delete sub.dataset.relAt;
-  if (current && !renameable) {
-    const rel = relativeTime(current.modifiedAt);
-    if (rel !== null) {
-      sub.dataset.relAt = String(current.modifiedAt);
-      sub.dataset.relLabel = "";
-      sub.textContent = rel;
-    }
-  }
 }
 
 function openSessionsView(): void {
@@ -3301,84 +3293,6 @@ function enterNewChat(
   $<HTMLTextAreaElement>("composer-input").focus();
 }
 
-function openRenameModal(): void {
-  if (!chat.threadId) {
-    showAlert(
-      "No session yet",
-      chat.cwd || chat.turnActive
-        ? "This chat has no session on the server until its first message is" +
-            " sent. Send one, then the title can be set."
-        : "Open or start a chat first.",
-    );
-    return;
-  }
-  if (chat.harness !== "codex") {
-    const info = harnessById(chat.harness);
-    showAlert(
-      `${info.agentName} names its own sessions`,
-      `A session's name belongs to the CLI that wrote it, and PabloAgent never` +
-        ` keeps a second copy — so it can only set one where the CLI has a name to` +
-        ` set. codex does. ${info.agentName} does not: ${renameHint(chat.harness)}`,
-    );
-    return;
-  }
-  hideError("rename-error");
-  const current = sessions.find(isOpenSession);
-  const input = $<HTMLInputElement>("rename-name");
-  input.value = chat.title || current?.title || current?.preview || "";
-  show($("modal-rename"), true);
-  input.focus();
-  input.select();
-}
-
-function renameHint(harness: Harness): string {
-  switch (harness) {
-    case "claude":
-      return (
-        "it writes an ai-title entry once it has understood the task, and" +
-        " this screen shows that title as soon as it lands."
-      );
-    case "opencode":
-      return (
-        "its own database holds the title, which it generates from the first" +
-        " prompt and later upgrades to an AI title."
-      );
-    case "pi":
-      return (
-        "its sessions are named with /name in pi's own interactive TUI, which" +
-        " writes the session_info entry this screen then shows."
-      );
-    default:
-      return "its sessions carry no name this app can write.";
-  }
-}
-
-async function renameOpenSession(): Promise<void> {
-  if (chat.harness !== "codex" || !chat.threadId) return;
-  const name = $<HTMLInputElement>("rename-name").value.trim();
-  if (!name) {
-    showError("rename-error", "Name required", "Enter a name for this chat.");
-    return;
-  }
-  hideError("rename-error");
-  const save = $<HTMLButtonElement>("rename-save");
-  save.disabled = true;
-  try {
-    await api.renameSession(chat.threadId, name, chat.harness);
-    chat.title = name;
-    const row = sessions.find(isOpenSession);
-    if (row) row.title = name;
-    renderChatSessionPill();
-    renderSessionList();
-    show($("modal-rename"), false);
-    toast("Chat renamed");
-  } catch (err) {
-    showError("rename-error", "Could not rename this chat", err);
-  } finally {
-    save.disabled = false;
-  }
-}
-
 // Reached by holding a card's header: what the card was rendered from.
 function sourceEntryFor(item: ThreadItem): { text: string; sub: string } {
   const id = String((item as { id?: string }).id ?? "");
@@ -4571,7 +4485,7 @@ function wireEvents(): void {
   $("filters-close").addEventListener("click", () =>
     show($("modal-filters"), false),
   );
-  $("chat-session").addEventListener("click", openRenameModal);
+  $("chat-session").addEventListener("click", openLabelModal);
   $("alert-close").addEventListener("click", () =>
     show($("modal-alert"), false),
   );
@@ -4587,16 +4501,6 @@ function wireEvents(): void {
       () => toast("Raw entry copied"),
       () => toast("Copy failed"),
     );
-  });
-  $("rename-cancel").addEventListener("click", () =>
-    show($("modal-rename"), false),
-  );
-  $("rename-save").addEventListener("click", () => void renameOpenSession());
-  $<HTMLInputElement>("rename-name").addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      void renameOpenSession();
-    }
   });
   $("label-cancel").addEventListener("click", () =>
     show($("modal-label"), false),
