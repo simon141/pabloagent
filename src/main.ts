@@ -2940,6 +2940,8 @@ window.__pabloOpenFailed = (message: string) => toast(message);
 let pendingSharedText: string | null = null;
 let pendingForwardPrompt: string | null = null;
 let pendingDraftPrompt: string | null = null;
+let pendingDraftDefaults: NewChatDefaults | null = null;
+let pendingDraftDeleteId: string | null = null;
 let pendingForwardToComposer = false;
 let pendingForwardCommitted = false;
 
@@ -2991,6 +2993,15 @@ function consumePendingDraft(): void {
   prefillComposer(pendingDraftPrompt);
   pendingDraftPrompt = null;
   toast("Draft added to the prompt");
+  // Use & delete only spends the draft once a chat actually took it.
+  if (pendingDraftDeleteId !== null) {
+    const id = pendingDraftDeleteId;
+    pendingDraftDeleteId = null;
+    void api.deleteDraftPrompt(draftPromptsPath, id).then(
+      () => toast("Draft deleted"),
+      () => toast("Could not delete the draft from the server"),
+    );
+  }
 }
 
 function consumePendingForward(): void {
@@ -3208,6 +3219,11 @@ async function openNewChatModal(cancelForward = false): Promise<void> {
 
   const persisted = await api.loadState();
   agentDefaults = persisted.agentDefaults;
+  // A draft's frontmatter overlays the remembered defaults for its harness, so
+  // pi's async model reload and harness switches re-render from it too.
+  const draft = pendingDraftDefaults;
+  pendingDraftDefaults = null;
+  if (draft) agentDefaults = { ...agentDefaults, [draft.harness]: draft };
   setFavorites(persisted.favorites);
 
   // Only harnesses the host actually has: offering one whose binary is missing
@@ -3221,7 +3237,7 @@ async function openNewChatModal(cancelForward = false): Promise<void> {
     opt.textContent = h.label;
     harnessSelect.appendChild(opt);
   }
-  const remembered = persisted.lastHarness;
+  const remembered = draft?.harness ?? persisted.lastHarness;
   harnessSelect.value =
     remembered && offered.some((h) => h.id === remembered)
       ? remembered
@@ -3239,6 +3255,8 @@ async function openNewChatModal(cancelForward = false): Promise<void> {
 function closeNewChatModal(): void {
   show($("modal-newchat"), false);
   pendingDraftPrompt = null;
+  pendingDraftDefaults = null;
+  pendingDraftDeleteId = null;
   if (clearForwardOnNewChatCancel) {
     pendingForwardPrompt = null;
     pendingForwardToComposer = false;
@@ -4229,29 +4247,22 @@ async function deleteDraft(d: DraftPrompt): Promise<void> {
   void openDraftsModal();
 }
 
+// Opens the New chat dialog rather than the chat itself: the draft's saved
+// model settings are a starting point the user gets to verify or change.
 function useDraft(d: ListedDraft, deleteAfter: boolean): void {
   show($("modal-drafts"), false);
-  if (d.readOnly) {
-    pendingDraftPrompt = d.prompt;
-    void openNewChatModal();
-    return;
-  }
-  enterNewChat(
-    harnessById(d.harness).id,
-    d.model,
-    d.effort,
-    d.cwd || settings?.defaultCwd || "",
-    d.permissionMode,
-  );
-  const input = $<HTMLTextAreaElement>("composer-input");
-  input.value = d.prompt;
-  input.dispatchEvent(new Event("input"));
-  if (deleteAfter) {
-    void api.deleteDraftPrompt(draftPromptsPath, d.id).then(
-      () => toast("Draft deleted"),
-      () => toast("Could not delete the draft from the server"),
-    );
-  }
+  pendingDraftPrompt = d.prompt;
+  pendingDraftDeleteId = deleteAfter ? d.id : null;
+  pendingDraftDefaults = d.readOnly
+    ? null
+    : {
+        harness: harnessById(d.harness).id,
+        model: d.model,
+        effort: d.effort,
+        cwd: d.cwd || settings?.defaultCwd || "",
+        permissionMode: d.permissionMode,
+      };
+  void openNewChatModal();
 }
 
 let drawerLoadGeneration = 0;
