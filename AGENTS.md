@@ -62,6 +62,11 @@ Run `npm run lint` before every commit, then the checks for what changed:
 Android releases are arm64 only. If the Android scaffolding is regenerated,
 confirm that `RustPlugin.kt` still limits builds to arm64.
 
+Local APK builds get the application id `app.pabloagent.local` by default so
+they install beside the released app. Only the GitHub release workflow builds
+the bare `app.pabloagent`, by setting `ORG_GRADLE_PROJECT_githubApk=true`.
+Verify every APK with `scripts/verify-apk.sh`, which checks the id.
+
 Build the portable Windows executable with:
 
 ```bash

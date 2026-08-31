@@ -56,9 +56,10 @@ android {
             }
         }
         getByName("release") {
-            // -PlocalApk (or ORG_GRADLE_PROJECT_localApk=true) re-IDs the APK
-            // as app.pabloagent.local so it installs beside the released app.
-            if (project.hasProperty("localApk")) {
+            // Local builds are re-ID'd as app.pabloagent.local so they install
+            // beside the released app. Only the GitHub release workflow passes
+            // githubApk (ORG_GRADLE_PROJECT_githubApk=true) for the bare id.
+            if (!project.hasProperty("githubApk")) {
                 applicationIdSuffix = ".local"
             }
             signingConfig = signingConfigs.getByName("release")

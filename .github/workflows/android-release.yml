@@ -88,8 +88,12 @@ jobs:
 
       - name: Build the release APK
         run: npm run android:build
+        env:
+          ORG_GRADLE_PROJECT_githubApk: true
 
       - name: Verify the APK
+        env:
+          ORG_GRADLE_PROJECT_githubApk: true
         run: |
           apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk' | head -1)
           ./scripts/verify-apk.sh "$apk"

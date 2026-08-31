@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Guards the two release-build properties that are easy to lose silently.
+# Guards the release-build properties that are easy to lose silently.
 #
 # 1. Single ABI. `gen/android` is generated, so the arm64-only patch in
 #    buildSrc/.../RustPlugin.kt is undone by any `tauri android init`. The
@@ -11,6 +11,10 @@
 # 2. Size ceiling. Catches the loss of `[profile.release]` in
 #    src-tauri/Cargo.toml or `isShrinkResources` in the release build type,
 #    both of which fail open, the build still succeeds, just much fatter.
+#
+# 3. Application id. Local builds must be app.pabloagent.local so they install
+#    beside the released app; only the GitHub release workflow, which sets
+#    ORG_GRADLE_PROJECT_githubApk=true, ships the bare app.pabloagent.
 #
 # Usage: scripts/verify-apk.sh <path-to-apk>   (override with MAX_BYTES=…)
 
@@ -45,4 +49,24 @@ if [ "$size" -gt "$MAX_BYTES" ]; then
   exit 1
 fi
 
-echo "OK: single ABI ($abis), $size bytes (ceiling $MAX_BYTES)."
+aapt2=$(find "${ANDROID_HOME:-/opt/android-sdk}/build-tools" -name aapt2 2>/dev/null | sort -V | tail -1)
+
+if [ -z "$aapt2" ]; then
+  echo "FAIL: no aapt2 under ANDROID_HOME to check the application id."
+  exit 1
+fi
+
+package=$("$aapt2" dump badging "$APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
+expected=app.pabloagent.local
+[ "${ORG_GRADLE_PROJECT_githubApk:-}" = "true" ] && expected=app.pabloagent
+
+if [ "$package" != "$expected" ]; then
+  echo "FAIL: application id is $package, expected $expected."
+  echo
+  echo "Local builds get the .local suffix by default; only the GitHub release"
+  echo "workflow sets ORG_GRADLE_PROJECT_githubApk=true for the bare id. Check"
+  echo "the release build type in gen/android/app/build.gradle.kts."
+  exit 1
+fi
+
+echo "OK: single ABI ($abis), $size bytes (ceiling $MAX_BYTES), id $package."
