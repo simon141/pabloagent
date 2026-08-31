@@ -25,7 +25,7 @@ pub struct KnownHost {
     pub openssh: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NewChatDefaults {
     pub harness: String,
@@ -48,6 +48,10 @@ pub struct PersistedState {
     pub send_on_enter: bool,
     pub maintenance_mode: bool,
     pub draft_prompts_path: String,
+    // Defaulted so a state file written before favorites existed still parses;
+    // a parse failure here falls back to a default state, losing the settings.
+    #[serde(default)]
+    pub favorites: Vec<NewChatDefaults>,
 }
 
 impl Default for PersistedState {
@@ -63,6 +67,7 @@ impl Default for PersistedState {
             send_on_enter: false,
             maintenance_mode: false,
             draft_prompts_path: String::new(),
+            favorites: Vec::new(),
         }
     }
 }
@@ -208,11 +213,29 @@ mod tests {
         let state = PersistedState {
             chat_font_size: 17,
             send_on_enter: true,
+            favorites: vec![NewChatDefaults {
+                harness: "codex".into(),
+                model: "gpt-5.5".into(),
+                effort: "high".into(),
+                cwd: "/home/user/project".into(),
+                permission_mode: String::new(),
+            }],
             ..PersistedState::default()
         };
         let restored: PersistedState =
             serde_json::from_str(&serde_json::to_string(&state).unwrap()).unwrap();
         assert_eq!(restored.chat_font_size, 17);
         assert!(restored.send_on_enter);
+        assert_eq!(restored.favorites, state.favorites);
+    }
+
+    #[test]
+    fn a_state_file_without_favorites_still_parses() {
+        let state = PersistedState::default();
+        let mut json: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&state).unwrap()).unwrap();
+        json.as_object_mut().unwrap().remove("favorites");
+        let restored: PersistedState = serde_json::from_value(json).unwrap();
+        assert!(restored.favorites.is_empty());
     }
 }

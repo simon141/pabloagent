@@ -1477,6 +1477,16 @@ button {
 .bubble-menu-item.danger {
   color: var(--danger);
 }
+/* The second line of a favorite: the workspace under the model. */
+.bubble-menu-sub {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
 /* A disabled item stays readable: it carries the reason it is disabled. */
 .bubble-menu-item:disabled {
   color: var(--muted);
@@ -2238,6 +2248,19 @@ button {
 }
 .modal-actions button {
   flex: 1 1 auto;
+}
+/* The add-favorite star: icon-sized between the stretched action buttons.
+ * It fills when the dialog's exact configuration is a saved favorite. */
+.modal-actions .icon-btn {
+  flex: 0 0 auto;
+  align-self: center;
+}
+#nc-favorite.favorited svg {
+  fill: currentColor;
+}
+.modal-actions .icon-btn:disabled {
+  color: var(--muted);
+  cursor: default;
 }
 
 /* A choice in a dialog that asks what a tap meant: a label with the subtitle

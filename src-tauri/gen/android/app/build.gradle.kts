@@ -56,6 +56,11 @@ android {
             }
         }
         getByName("release") {
+            // -PlocalApk (or ORG_GRADLE_PROJECT_localApk=true) re-IDs the APK
+            // as app.pabloagent.local so it installs beside the released app.
+            if (project.hasProperty("localApk")) {
+                applicationIdSuffix = ".local"
+            }
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true

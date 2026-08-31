@@ -94,6 +94,32 @@ fn save_new_chat_defaults(app: AppHandle, defaults: NewChatDefaults) -> Result<(
     store::save(&app, &persisted)
 }
 
+// Both favorite commands return the stored list so the frontend never drifts
+// from the file.
+#[tauri::command]
+fn save_favorite(
+    app: AppHandle,
+    favorite: NewChatDefaults,
+) -> Result<Vec<NewChatDefaults>, String> {
+    let mut persisted = store::load(&app);
+    if !persisted.favorites.contains(&favorite) {
+        persisted.favorites.push(favorite);
+        store::save(&app, &persisted)?;
+    }
+    Ok(persisted.favorites)
+}
+
+#[tauri::command]
+fn delete_favorite(
+    app: AppHandle,
+    favorite: NewChatDefaults,
+) -> Result<Vec<NewChatDefaults>, String> {
+    let mut persisted = store::load(&app);
+    persisted.favorites.retain(|f| f != &favorite);
+    store::save(&app, &persisted)?;
+    Ok(persisted.favorites)
+}
+
 #[tauri::command]
 fn save_transcript_filters(
     app: AppHandle,
@@ -880,6 +906,8 @@ pub fn run() {
             save_settings,
             clear_settings,
             save_new_chat_defaults,
+            save_favorite,
+            delete_favorite,
             save_transcript_filters,
             save_theme,
             save_chat_font_size,

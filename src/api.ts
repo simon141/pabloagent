@@ -30,6 +30,12 @@ export const clearSettings = () => invoke<void>("clear_settings");
 export const saveNewChatDefaults = (defaults: NewChatDefaults) =>
   invoke<void>("save_new_chat_defaults", { defaults });
 
+export const saveFavorite = (favorite: NewChatDefaults) =>
+  invoke<NewChatDefaults[]>("save_favorite", { favorite });
+
+export const deleteFavorite = (favorite: NewChatDefaults) =>
+  invoke<NewChatDefaults[]>("delete_favorite", { favorite });
+
 export const saveTranscriptFilters = (harness: Harness, hidden: string[]) =>
   invoke<void>("save_transcript_filters", { harness, hidden });
 

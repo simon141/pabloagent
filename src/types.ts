@@ -44,6 +44,7 @@ export interface PersistedState {
   maintenanceMode: boolean;
 
   draftPromptsPath: string;
+  favorites: NewChatDefaults[];
 }
 
 export interface DraftPromptFile {

@@ -154,6 +154,7 @@ let sendOnEnter = false;
 let maintenanceMode = false;
 let draftPromptsPath = "";
 let capabilities: HostCapabilities | null = null;
+let favorites: NewChatDefaults[] = [];
 
 function availableHarnesses(): HarnessInfo[] {
   if (!capabilities) return HARNESSES;
@@ -1333,6 +1334,8 @@ interface PopupAction {
   danger?: boolean;
 
   disabled?: boolean;
+  sub?: string;
+  hold?: (at: MenuAnchor) => void;
 }
 
 function openPopupMenu(actions: PopupAction[], at?: MenuAnchor): void {
@@ -1353,7 +1356,18 @@ function openPopupMenu(actions: PopupAction[], at?: MenuAnchor): void {
       ? "bubble-menu-item danger"
       : "bubble-menu-item";
     button.setAttribute("role", "menuitem");
-    button.textContent = action.label;
+    if (action.sub) {
+      const title = document.createElement("span");
+      title.textContent = action.label;
+      const sub = document.createElement("span");
+      sub.className = "bubble-menu-sub";
+      sub.textContent = action.sub;
+      button.append(title, sub);
+    } else {
+      button.textContent = action.label;
+    }
+    // Before the tap handler, so a completed hold swallows the release click.
+    if (action.hold) attachHoldMenu(button, action.hold);
     if (action.disabled) {
       button.disabled = true;
     } else {
@@ -3103,6 +3117,7 @@ function renderHarnessOptions(
   const loading = harness === "pi" && piModelsState === "loading";
   show($("nc-model-loading"), loading);
   $<HTMLButtonElement>("nc-create").disabled = loading;
+  $<HTMLButtonElement>("nc-favorite").disabled = loading;
   if (loading) {
     const model = $<HTMLSelectElement>("nc-model");
     const effort = $<HTMLSelectElement>("nc-effort");
@@ -3121,6 +3136,7 @@ function renderHarnessOptions(
     );
   }
   renderPermissionOptions(harness, defaults?.permissionMode);
+  renderFavoriteToggle();
   $("nc-harness-hint").textContent = `Each turn runs \`${
     harnessById(harness).command
   }\` on the server and is read back from ${harnessById(harness).sessionsLabel}.`;
@@ -3192,6 +3208,7 @@ async function openNewChatModal(cancelForward = false): Promise<void> {
 
   const persisted = await api.loadState();
   agentDefaults = persisted.agentDefaults;
+  setFavorites(persisted.favorites);
 
   // Only harnesses the host actually has: offering one whose binary is missing
   // would produce a turn that fails for a reason the dialog already knew.
@@ -3216,6 +3233,7 @@ async function openNewChatModal(cancelForward = false): Promise<void> {
   activateHarnessOptions(chosen, agentDefaults[chosen]);
   $<HTMLInputElement>("nc-cwd").value =
     agentDefaults[chosen]?.cwd || settings?.defaultCwd || "";
+  renderFavoriteToggle();
 }
 
 function closeNewChatModal(): void {
@@ -3283,7 +3301,7 @@ function enterNewChat(
   setTurnActive(false);
   setChatStatus(
     harness,
-    [choiceById(harness, model).label, effort, cwd].filter(Boolean).join(" · "),
+    [modelLabelFor(harness, model), effort, cwd].filter(Boolean).join(" · "),
   );
   newSessionNotice = transcript.addSystem(
     "New session — it is created when you send the first message.",
@@ -3291,6 +3309,135 @@ function enterNewChat(
   renderChatSessionPill();
   goto("chat");
   $<HTMLTextAreaElement>("composer-input").focus();
+}
+
+// A model outside the catalog (a pi favorite saved from a since-unloaded model
+// list, say) keeps its id rather than borrowing the fallback entry's label.
+function modelLabelFor(harness: Harness, model: string): string {
+  const choice = choiceById(harness, model);
+  return choice.id === model ? choice.label : model;
+}
+
+function setFavorites(list: NewChatDefaults[]): void {
+  favorites = list;
+  show($("sessions-favorites"), favorites.length > 0);
+  renderFavoriteToggle();
+}
+
+const sameFavorite = (a: NewChatDefaults, b: NewChatDefaults) =>
+  a.harness === b.harness &&
+  a.model === b.model &&
+  a.effort === b.effort &&
+  a.cwd === b.cwd &&
+  a.permissionMode === b.permissionMode;
+
+function favoriteTitle(f: NewChatDefaults): string {
+  const effort = f.effort ? ` (${f.effort})` : "";
+  return `${harnessById(f.harness).badge} · ${modelLabelFor(f.harness, f.model)}${effort}`;
+}
+
+function favoriteSub(f: NewChatDefaults): string {
+  const permission = f.permissionMode
+    ? (harnessById(f.harness).permissionModes.find(
+        (m) => m.id === f.permissionMode,
+      )?.label ?? f.permissionMode)
+    : "";
+  return [f.cwd, permission].filter(Boolean).join(" · ");
+}
+
+function dialogFavorite(): NewChatDefaults {
+  const harness = selectedHarness();
+  return {
+    harness,
+    model: $<HTMLSelectElement>("nc-model").value,
+    effort: $<HTMLSelectElement>("nc-effort").value,
+    cwd: $<HTMLInputElement>("nc-cwd").value.trim(),
+    permissionMode: harnessById(harness).permissionModes.length
+      ? $<HTMLSelectElement>("nc-permission").value
+      : "",
+  };
+}
+
+// The star fills when the dialog's exact configuration is already saved.
+function renderFavoriteToggle(): void {
+  const loading = selectedHarness() === "pi" && piModelsState === "loading";
+  const saved =
+    !loading && favorites.some((f) => sameFavorite(f, dialogFavorite()));
+  const button = $<HTMLButtonElement>("nc-favorite");
+  button.classList.toggle("favorited", saved);
+  button.setAttribute("aria-pressed", String(saved));
+  button.setAttribute("aria-label", saved ? "Remove favorite" : "Add favorite");
+}
+
+async function toggleFavoriteFromDialog(): Promise<void> {
+  hideError("newchat-error");
+  if (selectedHarness() === "pi" && piModelsState === "loading") return;
+  const favorite = dialogFavorite();
+  if (!favorite.cwd) {
+    showError(
+      "newchat-error",
+      "Workspace path required",
+      "Enter an absolute path on the server.",
+    );
+    return;
+  }
+  const saved = favorites.some((f) => sameFavorite(f, favorite));
+  try {
+    if (saved) {
+      setFavorites(await api.deleteFavorite(favorite));
+      toast("Favorite removed");
+    } else {
+      setFavorites(await api.saveFavorite(favorite));
+      toast("Favorite added");
+    }
+  } catch (err) {
+    showError(
+      "newchat-error",
+      saved ? "Could not remove the favorite" : "Could not save the favorite",
+      err,
+    );
+  }
+}
+
+function openFavoritesMenu(at?: MenuAnchor): void {
+  openPopupMenu(
+    favorites.map((f) => ({
+      label: favoriteTitle(f),
+      sub: favoriteSub(f),
+      run: () => startFavoriteChat(f),
+      hold: (holdAt: MenuAnchor) =>
+        openPopupMenu(
+          [
+            {
+              label: "Delete favorite",
+              danger: true,
+              run: () => void deleteFavorite(f),
+            },
+          ],
+          holdAt,
+        ),
+    })),
+    at,
+  );
+}
+
+async function deleteFavorite(f: NewChatDefaults): Promise<void> {
+  try {
+    setFavorites(await api.deleteFavorite(f));
+    toast("Favorite deleted");
+  } catch (err) {
+    toast(`Could not delete the favorite: ${String(err)}`);
+  }
+}
+
+// The same landing as Create, minus the dialog: waiting shared, forwarded or
+// draft text is spent into the new chat here too.
+function startFavoriteChat(f: NewChatDefaults): void {
+  chatGeneration += 1;
+  enterNewChat(f.harness, f.model, f.effort, f.cwd, f.permissionMode);
+  consumePendingShare();
+  consumePendingForward();
+  consumePendingDraft();
 }
 
 // Reached by holding a card's header: what the card was rendered from.
@@ -4407,6 +4554,10 @@ function wireEvents(): void {
     })();
   });
   $("sessions-menu").addEventListener("click", () => void openDrawer());
+  $("sessions-favorites").addEventListener("click", () => {
+    const rect = $("sessions-favorites").getBoundingClientRect();
+    openFavoritesMenu({ x: rect.left, y: rect.bottom + 4 });
+  });
   // Waiting text is only ever spent by opening a chat, so without this a share
   // cannot be abandoned short of sending it somewhere.
   $("share-notice-dismiss").addEventListener("click", discardPendingShare);
@@ -4423,14 +4574,23 @@ function wireEvents(): void {
     const remembered = agentDefaults[harness];
     activateHarnessOptions(harness, remembered);
     if (remembered?.cwd) $<HTMLInputElement>("nc-cwd").value = remembered.cwd;
+    renderFavoriteToggle();
   });
   $("nc-model").addEventListener("change", () => {
     renderEffortOptions(
       selectedHarness(),
       $<HTMLSelectElement>("nc-model").value,
     );
+    renderFavoriteToggle();
   });
+  $("nc-effort").addEventListener("change", renderFavoriteToggle);
+  $("nc-permission").addEventListener("change", renderFavoriteToggle);
+  $("nc-cwd").addEventListener("input", renderFavoriteToggle);
   $("nc-cancel").addEventListener("click", closeNewChatModal);
+  $("nc-favorite").addEventListener(
+    "click",
+    () => void toggleFavoriteFromDialog(),
+  );
   $("nc-create").addEventListener("click", () => void createNewChat());
 
   $("chat-back").addEventListener("click", () => openSessionsView());
@@ -4754,6 +4914,7 @@ async function main(): Promise<void> {
   maintenanceMode = persisted.maintenanceMode;
   renderDrawerMaintenanceItems();
   draftPromptsPath = persisted.draftPromptsPath;
+  setFavorites(persisted.favorites);
   fillConnectForm(settings);
 
   if (settings?.host && settings.username && settings.password) {

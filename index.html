@@ -173,6 +173,19 @@
             </svg>
           </button>
           <button
+            id="sessions-favorites"
+            type="button"
+            class="icon-btn"
+            aria-label="Start a chat from a favorite"
+            hidden
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"
+              />
+            </svg>
+          </button>
+          <button
             id="sessions-new"
             type="button"
             class="icon-btn new-chat-btn"
@@ -709,6 +722,13 @@
         <div id="newchat-error" class="error-panel" hidden></div>
         <div class="modal-actions">
           <button id="nc-cancel" type="button" class="ghost">Cancel</button>
+          <button id="nc-favorite" type="button" class="icon-btn" aria-label="Add favorite">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"
+              />
+            </svg>
+          </button>
           <button id="nc-create" type="button" class="primary">Create</button>
         </div>
       </div>
