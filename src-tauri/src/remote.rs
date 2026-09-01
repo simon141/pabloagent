@@ -641,7 +641,7 @@ pub fn set_pi_session_name_command(
     Ok(cmd)
 }
 
-const DRAFT_PROMPTS_DIR: &str = "${XDG_DATA_HOME:-$HOME/.local/share}/pabloagent/draft-prompts";
+const DRAFT_PROMPTS_DIR: &str = "${XDG_DATA_HOME:-$HOME/.local/share}/pabloagent/draft";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2275,7 +2275,7 @@ mod tests {
         assert!(save.contains("base64 -d >\"$d/$f.md\""), "{save}");
 
         let default = list_draft_prompts_command(" ").unwrap();
-        assert!(default.contains("pabloagent/draft-prompts"), "{default}");
+        assert!(default.contains("pabloagent/draft"), "{default}");
         assert!(default.contains("-name '*.md'"), "{default}");
         assert!(default.contains("-name '*.txt'"), "{default}");
         // Any depth, with the path relative to the drafts directory.
