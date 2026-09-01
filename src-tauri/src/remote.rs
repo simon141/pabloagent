@@ -501,7 +501,7 @@ pub fn list_sessions_command(opencode_bin: &str) -> String {
     )
 }
 
-const SESSION_META_DIR: &str = "${XDG_CACHE_HOME:-$HOME/.cache}/pabloagent/session-meta";
+const SESSION_META_DIR: &str = "${XDG_DATA_HOME:-$HOME/.local/share}/pabloagent/session-meta";
 
 const SESSION_META_LIMIT: usize = 400;
 
@@ -1676,7 +1676,8 @@ mod tests {
         // The app's own sidecar record goes with the session.
         assert!(
             codex.contains(
-                "rm -rf -- \"${XDG_CACHE_HOME:-$HOME/.cache}/pabloagent/session-meta/codex-abc\" \
+                "rm -rf -- \
+                 \"${XDG_DATA_HOME:-$HOME/.local/share}/pabloagent/session-meta/codex-abc\" \
                  || exit 1"
             ),
             "{codex}"

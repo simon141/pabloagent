@@ -2130,10 +2130,11 @@ async fn a_closed_and_read_session_carries_its_sidecar_marks() {
         panic!("marking read must run cleanly on the server: {e}");
     }
 
-    // The server env pins XDG_CACHE_HOME to <temp>/cache — see Remote::start.
+    // The server env pins XDG_DATA_HOME to <temp>/.local/share — see
+    // Remote::start.
     let meta_dir = remote
         .temp
-        .join("cache/pabloagent/session-meta")
+        .join(".local/share/pabloagent/session-meta")
         .join(format!("claude-{thread}"));
     let first_close = std::fs::read_to_string(meta_dir.join("closed")).unwrap_or_default();
     // A second close must not move the timestamp — the flag is one-way and
@@ -2241,10 +2242,11 @@ async fn naming_a_pi_session_writes_pi_s_own_record_and_the_picker_reads_it_back
         .find(|s| s.id == thread)
         .and_then(|s| s.title);
 
-    // The server env pins XDG_CACHE_HOME to <temp>/cache — see Remote::start.
+    // The server env pins XDG_DATA_HOME to <temp>/.local/share — see
+    // Remote::start.
     let record = remote
         .temp
-        .join("cache/pabloagent/session-meta")
+        .join(".local/share/pabloagent/session-meta")
         .join(format!("pi-{thread}"))
         .join("name");
     let remembered = std::fs::read_to_string(&record).unwrap_or_default();
