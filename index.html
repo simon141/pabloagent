@@ -484,15 +484,17 @@
         >
           Set label…
         </button>
-        <!-- The sidecar's one-way "done with this" flag; an already-closed
-             session shows the item disabled, because nothing reopens one. -->
+        <!-- The sidecar's "done with this" flag: a checkbox, so ticking it
+             off reopens the session. -->
         <button
           id="chat-menu-close"
           type="button"
           class="chat-menu-item"
-          role="menuitem"
+          role="menuitemcheckbox"
+          aria-checked="false"
         >
-          Mark as closed…
+          <span id="chat-menu-close-text">Mark closed</span>
+          <span class="chat-menu-checkbox" aria-hidden="true"></span>
         </button>
         <button
           id="chat-menu-delete"

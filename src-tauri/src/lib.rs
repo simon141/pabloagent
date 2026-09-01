@@ -9,10 +9,10 @@ pub mod testing {
     pub use crate::diag::Diagnostics;
     pub use crate::download::{Download, Header, Progress};
     pub use crate::remote::{
-        close_session_command, delete_session_command, download_remote_file_command,
-        list_sessions_command, mark_session_read_command, parse_pretty_session, parse_sessions,
-        parse_turn_poll, poll_turn_command, pretty_session_command, read_rollout_command,
-        refused_because_busy, rewind_session_command, set_pi_session_name_command,
+        delete_session_command, download_remote_file_command, list_sessions_command,
+        mark_session_read_command, parse_pretty_session, parse_sessions, parse_turn_poll,
+        poll_turn_command, pretty_session_command, read_rollout_command, refused_because_busy,
+        rewind_session_command, set_pi_session_name_command, set_session_closed_command,
         start_turn_command, stop_turn_command, Harness, SessionSummary, TurnPoll, TurnRequest,
         TurnState, SCRIPT,
     };
@@ -239,18 +239,22 @@ async fn mark_session_read(
 }
 
 #[tauri::command]
-async fn close_session(
+async fn set_session_closed(
     state: State<'_, AppState>,
     harness: Option<remote::Harness>,
     thread_id: String,
+    closed: bool,
 ) -> Result<(), String> {
-    let command = remote::close_session_command(harness.unwrap_or_default(), &thread_id)?;
-    let mut guard = state.connected("closing a session").await?;
+    let command =
+        remote::set_session_closed_command(harness.unwrap_or_default(), &thread_id, closed)?;
+    let verb = if closed { "closing" } else { "reopening" };
+    let mut guard = state.connected(&format!("{verb} a session")).await?;
     let connection = guard.as_mut().expect("checked");
-    connection.run_ok("close session", &command).await?;
+    connection.run_ok("set session closed", &command).await?;
+    let done = if closed { "closed" } else { "reopened" };
     state
         .diagnostics
-        .push("remote", format!("closed session {thread_id}"));
+        .push("remote", format!("{done} session {thread_id}"));
     Ok(())
 }
 
@@ -948,7 +952,7 @@ pub fn run() {
             list_draft_prompts,
             delete_draft_prompt,
             mark_session_read,
-            close_session,
+            set_session_closed,
             set_session_label,
             set_pi_session_name,
             connect,

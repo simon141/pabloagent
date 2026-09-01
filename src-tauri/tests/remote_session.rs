@@ -17,12 +17,13 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 
 use pabloagent_lib::testing::{
-    close_session_command, connect_full, delete_session_command, download_remote_file_command,
-    list_sessions_command, mark_session_read_command, parse_pretty_session, parse_sessions,
-    parse_turn_poll, poll_turn_command, pretty_session_command, read_rollout_command,
-    refused_because_busy, rewind_session_command, set_pi_session_name_command, start_turn_command,
-    stop_turn_command, ConnectOutcome, Connection, Diagnostics, Download, Harness, Header,
-    KnownHost, Progress, SessionSummary, SshSettings, TurnPoll, TurnRequest, TurnState,
+    connect_full, delete_session_command, download_remote_file_command, list_sessions_command,
+    mark_session_read_command, parse_pretty_session, parse_sessions, parse_turn_poll,
+    poll_turn_command, pretty_session_command, read_rollout_command, refused_because_busy,
+    rewind_session_command, set_pi_session_name_command, set_session_closed_command,
+    start_turn_command, stop_turn_command, ConnectOutcome, Connection, Diagnostics, Download,
+    Harness, Header, KnownHost, Progress, SessionSummary, SshSettings, TurnPoll, TurnRequest,
+    TurnState,
 };
 use russh::keys::ssh_key::{HashAlg, PrivateKey};
 use russh::server::{Auth, ChannelOpenHandle, Handler, Msg, Server, Session};
@@ -2117,7 +2118,7 @@ async fn a_closed_and_read_session_carries_its_sidecar_marks() {
 
     // Close and mark read — both must run cleanly even while the turn may
     // still be finishing, because neither touches the session file.
-    let close = close_session_command(Harness::Claude, &thread)
+    let close = set_session_closed_command(Harness::Claude, &thread, true)
         .expect("a uuid thread id builds a close command");
     let read = mark_session_read_command(Harness::Claude, &thread, 1_785_300_100)
         .expect("a uuid thread id builds a read-mark command");
@@ -2137,8 +2138,8 @@ async fn a_closed_and_read_session_carries_its_sidecar_marks() {
         .join(".local/share/pabloagent/session-meta")
         .join(format!("claude-{thread}"));
     let first_close = std::fs::read_to_string(meta_dir.join("closed")).unwrap_or_default();
-    // A second close must not move the timestamp — the flag is one-way and
-    // the write is `[ -e ] ||`, so there is nothing for a repeat to change.
+    // A second close must not move the timestamp — the write is `[ -e ] ||`,
+    // so there is nothing for a repeat to change.
     let _ = remote
         .connection
         .run_ok("close session again", &close)
@@ -2150,6 +2151,16 @@ async fn a_closed_and_read_session_carries_its_sidecar_marks() {
     let read_value = std::fs::read_to_string(meta_dir.join("read")).unwrap_or_default();
 
     let listed = remote.sessions().await.into_iter().find(|s| s.id == thread);
+
+    // Reopening removes the flag, and the listing stops carrying the mark.
+    let reopen = set_session_closed_command(Harness::Claude, &thread, false)
+        .expect("a uuid thread id builds a reopen command");
+    if let Err(e) = remote.connection.run_ok("reopen session", &reopen).await {
+        remote.cleanup();
+        panic!("reopening must run cleanly on the server: {e}");
+    }
+    let reopen_removed_flag = !meta_dir.join("closed").exists();
+    let relisted = remote.sessions().await.into_iter().find(|s| s.id == thread);
 
     // Deleting the session takes its record with it. The turn is stopped
     // first so the busy guard is not what this asserts.
@@ -2186,6 +2197,15 @@ async fn a_closed_and_read_session_carries_its_sidecar_marks() {
         "the pill's timestamp is the record's"
     );
     assert_eq!(listed.read_at, Some(1_785_300_100));
+    assert!(
+        reopen_removed_flag,
+        "reopening must remove the closed record"
+    );
+    let relisted = relisted.expect("the reopened session is still listed");
+    assert_eq!(
+        relisted.closed_at, None,
+        "a reopened session must not carry the closed mark"
+    );
     assert!(
         refused_because_busy(&delete).is_none(),
         "the stopped turn must not refuse the delete: {delete}"

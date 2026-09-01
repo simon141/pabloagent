@@ -534,14 +534,27 @@ fn session_meta_records_command() -> String {
     )
 }
 
-pub fn close_session_command(harness: Harness, thread_id: &str) -> Result<String, String> {
+pub fn set_session_closed_command(
+    harness: Harness,
+    thread_id: &str,
+    closed: bool,
+) -> Result<String, String> {
     let name = session_meta_name(harness, thread_id)?;
-    Ok(format!(
-        "d=\"{SESSION_META_DIR}/{name}\"\n\
-         mkdir -p -- \"$d\"\n\
-         [ -e \"$d/closed\" ] || date +%s > \"$d/closed\"\n\
-         touch -- \"$d\""
-    ))
+    if closed {
+        Ok(format!(
+            "d=\"{SESSION_META_DIR}/{name}\"\n\
+             mkdir -p -- \"$d\"\n\
+             [ -e \"$d/closed\" ] || date +%s > \"$d/closed\"\n\
+             touch -- \"$d\""
+        ))
+    } else {
+        Ok(format!(
+            "d=\"{SESSION_META_DIR}/{name}\"\n\
+             mkdir -p -- \"$d\"\n\
+             rm -f -- \"$d/closed\"\n\
+             touch -- \"$d\""
+        ))
+    }
 }
 
 pub fn mark_session_read_command(
@@ -2104,12 +2117,19 @@ mod tests {
 
     #[test]
     fn sidecar_writes_are_guarded_and_open_to_every_harness() {
-        let close = close_session_command(Harness::Opencode, "ses_abc123DEF").unwrap();
+        let close = set_session_closed_command(Harness::Opencode, "ses_abc123DEF", true).unwrap();
         assert!(
             close.contains("session-meta/opencode-ses_abc123DEF"),
             "{close}"
         );
         assert!(close.contains("[ -e \"$d/closed\" ] ||"), "{close}");
+
+        let reopen = set_session_closed_command(Harness::Opencode, "ses_abc123DEF", false).unwrap();
+        assert!(
+            reopen.contains("session-meta/opencode-ses_abc123DEF"),
+            "{reopen}"
+        );
+        assert!(reopen.contains("rm -f -- \"$d/closed\""), "{reopen}");
 
         let read = mark_session_read_command(
             Harness::Claude,
@@ -2123,9 +2143,10 @@ mod tests {
         );
         assert!(read.contains("[ \"$cur\" -lt 1785300100 ]"), "{read}");
 
-        assert!(close_session_command(Harness::Codex, "../../etc").is_err());
-        assert!(close_session_command(Harness::Codex, "a b").is_err());
-        assert!(close_session_command(Harness::Codex, "").is_err());
+        assert!(set_session_closed_command(Harness::Codex, "../../etc", true).is_err());
+        assert!(set_session_closed_command(Harness::Codex, "a b", true).is_err());
+        assert!(set_session_closed_command(Harness::Codex, "", true).is_err());
+        assert!(set_session_closed_command(Harness::Codex, "../../etc", false).is_err());
         assert!(mark_session_read_command(Harness::Codex, "abc", 0).is_err());
         assert!(mark_session_read_command(Harness::Codex, "abc", -5).is_err());
 

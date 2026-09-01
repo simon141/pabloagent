@@ -107,8 +107,11 @@ export const markSessionRead = (
   at: number,
 ) => invoke<void>("mark_session_read", { harness, threadId, at });
 
-export const closeSession = (harness: Harness, threadId: string) =>
-  invoke<void>("close_session", { harness, threadId });
+export const setSessionClosed = (
+  harness: Harness,
+  threadId: string,
+  closed: boolean,
+) => invoke<void>("set_session_closed", { harness, threadId, closed });
 
 export const setSessionLabel = (
   harness: Harness,

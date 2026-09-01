@@ -1270,6 +1270,36 @@ button {
 .chat-menu-note:empty {
   display: none;
 }
+.chat-menu-checkbox {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--muted);
+  border-radius: 5px;
+}
+.chat-menu-item[aria-checked="true"] .chat-menu-checkbox {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.chat-menu-item[aria-checked="true"] .chat-menu-checkbox::after {
+  content: "";
+  display: block;
+  width: 5px;
+  height: 9px;
+  margin: 1px auto 0;
+  border: solid var(--bg-raised);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.chat-menu-item:disabled .chat-menu-checkbox {
+  border-color: var(--line);
+  background: transparent;
+}
+.chat-menu-item:disabled .chat-menu-checkbox::after {
+  display: none;
+}
 /*
  * The sheet holds still and the list scrolls, so Done stays on screen.
  * `min-height: 0` is what lets a flex item shrink below its content and become

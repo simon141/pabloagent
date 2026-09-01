@@ -3876,20 +3876,19 @@ async function saveSessionName(): Promise<void> {
 
 function renderChatMenuClose(): void {
   const item = $<HTMLButtonElement>("chat-menu-close");
+  const text = $("chat-menu-close-text");
   const current = sessions.find(isOpenSession);
-  if (!current) {
-    item.disabled = true;
-    item.textContent = "Mark closed — no session saved yet";
-  } else if (current.closedAt !== null) {
-    item.disabled = true;
-    item.textContent = "Closed";
-  } else {
-    item.disabled = false;
-    item.textContent = "Mark closed";
-  }
+  item.disabled = !current;
+  item.setAttribute(
+    "aria-checked",
+    current && current.closedAt !== null ? "true" : "false",
+  );
+  text.textContent = current
+    ? "Mark closed"
+    : "Mark closed — no session saved yet";
 }
 
-async function closeOpenSession(): Promise<void> {
+async function toggleOpenSessionClosed(): Promise<void> {
   const current = sessions.find(isOpenSession);
   if (!current) {
     showAlert(
@@ -3898,31 +3897,25 @@ async function closeOpenSession(): Promise<void> {
     );
     return;
   }
-  if (current.closedAt !== null) return;
-  const ok = await askConfirm(
-    "Mark this session as closed?",
-    `"${sessionLabel(current)}"\n\nThe session stays on the server and in the ` +
-      "list with a Closed pill on its row. This cannot be undone from this app.",
-    "Mark closed",
-  );
-  if (!ok) return;
-  overlay("Closing session…");
+  const closing = current.closedAt === null;
+  overlay(closing ? "Closing session…" : "Reopening session…");
   try {
-    await api.closeSession(current.harness, current.id);
+    await api.setSessionClosed(current.harness, current.id, closing);
   } catch (err) {
     overlay(null);
     showAlert(
-      "Could not close the session",
+      closing ? "Could not close the session" : "Could not reopen the session",
       err instanceof Error ? err.message : String(err),
     );
     return;
   }
-  // Optimistic, like a read mark: the pill shows now, and the next list
+  // Optimistic, like a read mark: the pill flips now, and the next list
   // refresh brings the server's own timestamp back.
-  current.closedAt = Math.floor(Date.now() / 1000);
+  current.closedAt = closing ? Math.floor(Date.now() / 1000) : null;
   overlay(null);
-  openSessionsView();
-  toast("Session closed");
+  renderChatSessionPill();
+  renderSessionList();
+  toast(closing ? "Session closed" : "Session reopened");
 }
 
 function renderChatMenuDelete(): void {
@@ -4840,7 +4833,7 @@ function wireEvents(): void {
   });
   $("chat-menu-close").addEventListener("click", () => {
     closeChatMenu();
-    void closeOpenSession();
+    void toggleOpenSessionClosed();
   });
   $("chat-menu-delete").addEventListener("click", () => {
     closeChatMenu();
