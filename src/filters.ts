@@ -31,6 +31,7 @@ const DEFAULT_HIDDEN: Partial<Record<Harness, readonly string[]>> = {
     "type:pr-link",
     "type:attachment:queued_command",
     "type:attachment:task_reminder",
+    "type:attachment:total_tokens_reminder",
   ],
   opencode: ["steps"],
   pi: ["thought-encrypted"],
