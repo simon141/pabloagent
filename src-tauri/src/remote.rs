@@ -1381,6 +1381,19 @@ pub fn busy_session_message(action: &str, turn: &str) -> String {
     )
 }
 
+/// Claude Code keeps a run's environment at `<config>/session-env/<id>`, beside
+/// the `projects` tree that holds the transcript.
+fn claude_session_env(path: &str) -> Option<String> {
+    let (dir, file) = path.rsplit_once('/')?;
+    let (projects, slug) = dir.rsplit_once('/')?;
+    let (config, name) = projects.rsplit_once('/')?;
+    if name != "projects" || slug.is_empty() || config.is_empty() {
+        return None;
+    }
+    let id = file.strip_suffix(".jsonl")?;
+    Some(format!("{config}/session-env/{id}"))
+}
+
 pub fn delete_session_command(
     harness: Harness,
     path: &str,
@@ -1396,17 +1409,36 @@ pub fn delete_session_command(
     if !path.starts_with('/') || !path.ends_with(".jsonl") {
         return Err(format!("'{path}' does not name a session file"));
     }
+    let file = quote(path);
     let mut cmd = session_busy_guard(harness, thread_id, path)?;
-    cmd.push_str(&format!("rm -- {}", quote(path)));
+    // Every removal exits on failure, or the last one supplies the script's
+    // exit status and a delete that removed nothing reads as success.
+    cmd.push_str(&format!("rm -f -- {file} || exit 1"));
+    cmd.push_str(&format!(
+        "\nrm -f -- {} || exit 1",
+        quote(&format!("{path}.rewind-bak"))
+    ));
     if harness == Harness::Claude {
         let dir = path.strip_suffix(".jsonl").expect("checked above");
-        cmd.push_str(&format!("\nrm -rf -- {}", quote(dir)));
+        cmd.push_str(&format!("\nrm -rf -- {} || exit 1", quote(dir)));
+        if let Some(env) = claude_session_env(path) {
+            cmd.push_str(&format!("\nrm -rf -- {} || exit 1", quote(&env)));
+        }
     }
     // The sidecar record goes with the session. Skipped when the id is empty
     // or odd rather than failing the delete.
     if let Ok(name) = session_meta_name(harness, thread_id) {
-        cmd.push_str(&format!("\nrm -rf -- \"{SESSION_META_DIR}/{name}\""));
+        cmd.push_str(&format!(
+            "\nrm -rf -- \"{SESSION_META_DIR}/{name}\" || exit 1"
+        ));
     }
+    // A remote filesystem can report a removal it did not make.
+    cmd.push_str(&format!(
+        "\nif [ -e {file} ]; then\n\
+         \tprintf 'the server still has %s after removing it\\n' {file} >&2\n\
+         \texit 1\n\
+         fi"
+    ));
     Ok(cmd)
 }
 
@@ -1638,13 +1670,14 @@ mod tests {
         let codex = delete_session_command(Harness::Codex, "/h/.codex/sessions/r-abc.jsonl", "abc");
         let codex = codex.unwrap();
         assert!(
-            codex.contains("rm -- '/h/.codex/sessions/r-abc.jsonl'"),
+            codex.contains("rm -f -- '/h/.codex/sessions/r-abc.jsonl' || exit 1"),
             "{codex}"
         );
         // The app's own sidecar record goes with the session.
         assert!(
-            codex.ends_with(
-                "rm -rf -- \"${XDG_CACHE_HOME:-$HOME/.cache}/pabloagent/session-meta/codex-abc\""
+            codex.contains(
+                "rm -rf -- \"${XDG_CACHE_HOME:-$HOME/.cache}/pabloagent/session-meta/codex-abc\" \
+                 || exit 1"
             ),
             "{codex}"
         );
@@ -1653,18 +1686,61 @@ mod tests {
             delete_session_command(Harness::Claude, "/h/.claude/projects/-w/id.jsonl", "id");
         let claude = claude.unwrap();
         assert!(
-            claude.contains("rm -- '/h/.claude/projects/-w/id.jsonl'"),
+            claude.contains("rm -f -- '/h/.claude/projects/-w/id.jsonl' || exit 1"),
             "{claude}"
         );
         assert!(
-            claude.contains("rm -rf -- '/h/.claude/projects/-w/id'"),
+            claude.contains("rm -rf -- '/h/.claude/projects/-w/id' || exit 1"),
             "{claude}"
         );
+        assert!(
+            claude.contains("rm -f -- '/h/.claude/projects/-w/id.jsonl.rewind-bak' || exit 1"),
+            "{claude}"
+        );
+        assert!(
+            claude.contains("rm -rf -- '/h/.claude/session-env/id' || exit 1"),
+            "{claude}"
+        );
+        assert!(
+            codex.contains("rm -f -- '/h/.codex/sessions/r-abc.jsonl.rewind-bak' || exit 1"),
+            "{codex}"
+        );
+        assert!(!codex.contains("session-env"), "{codex}");
+        // A transcript outside a `projects` tree names no environment record.
+        let flat = delete_session_command(Harness::Claude, "/h/id.jsonl", "id").unwrap();
+        assert!(!flat.contains("session-env"), "{flat}");
 
         assert!(delete_session_command(Harness::Opencode, "/x/ses_a.jsonl", "a").is_err());
         // A path that is not a session file is refused before any shell runs.
         assert!(delete_session_command(Harness::Codex, "relative.jsonl", "a").is_err());
         assert!(delete_session_command(Harness::Pi, "/etc/passwd", "a").is_err());
+    }
+
+    #[test]
+    fn a_delete_that_removed_nothing_exits_non_zero() {
+        for (what, harness, path, id) in [
+            ("codex", Harness::Codex, "/h/s/r-abc.jsonl", "abc"),
+            ("claude", Harness::Claude, "/h/p/-w/id.jsonl", "id"),
+            ("idless", Harness::Codex, "/h/s/r-abc.jsonl", ""),
+        ] {
+            let cmd = delete_session_command(harness, path, id).unwrap();
+            for line in cmd.lines().filter(|l| l.starts_with("rm ")) {
+                assert!(line.ends_with(" || exit 1"), "{what}: {line}");
+            }
+            assert!(
+                cmd.ends_with(&format!(
+                    "if [ -e '{path}' ]; then\n\
+                     \tprintf 'the server still has %s after removing it\\n' '{path}' >&2\n\
+                     \texit 1\n\
+                     fi"
+                )),
+                "{what}: a delete must prove the file is gone: {cmd}"
+            );
+        }
+        // The path reaches the message as a quoted argument, never as shell.
+        let hostile = delete_session_command(Harness::Codex, "/h/$(id).jsonl", "abc").unwrap();
+        assert!(!hostile.contains("\"the server"), "{hostile}");
+        assert!(hostile.contains("'/h/$(id).jsonl' >&2"), "{hostile}");
     }
 
     #[test]

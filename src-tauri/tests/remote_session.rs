@@ -2002,6 +2002,92 @@ async fn changing_a_pi_session_is_refused_while_a_turn_writes_it() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn deleting_a_claude_session_takes_the_files_left_beside_it() {
+    let Some(mut remote) = Remote::start("delete-leftovers").await else {
+        return;
+    };
+    let id = "e60d9da3-971b-4f4e-961e-43d51c20e3ae";
+    let neighbour_id = "f60d9da3-971b-4f4e-961e-43d51c20e3ae";
+    let projects = remote.temp.join(".claude/projects/-agents-adam");
+    let envs = remote.temp.join(".claude/session-env");
+    std::fs::create_dir_all(&projects).unwrap();
+    std::fs::create_dir_all(&envs).unwrap();
+    let path = projects.join(format!("{id}.jsonl"));
+    let backup = projects.join(format!("{id}.jsonl.rewind-bak"));
+    let env = envs.join(id);
+    let other_path = projects.join(format!("{neighbour_id}.jsonl"));
+    let other_env = envs.join(neighbour_id);
+    for f in [&path, &backup, &env, &other_path, &other_env] {
+        std::fs::write(f, "{\"type\":\"summary\"}\n").unwrap();
+    }
+
+    remote
+        .run_guarded(
+            "delete session",
+            delete_session_command(Harness::Claude, &path.display().to_string(), id),
+        )
+        .await;
+    let left = [&path, &backup, &env]
+        .iter()
+        .filter(|f| f.exists())
+        .map(|f| f.display().to_string())
+        .collect::<Vec<_>>();
+    let neighbour_kept = other_path.exists() && other_env.exists();
+    remote.cleanup();
+
+    assert!(
+        left.is_empty(),
+        "the delete must take the transcript, its rewind backup and its \
+         session-env record: {left:?}"
+    );
+    assert!(
+        neighbour_kept,
+        "and must not touch another session's records"
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn a_delete_the_server_could_not_make_is_reported_as_a_failure() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let Some(mut remote) = Remote::start("delete-refused").await else {
+        return;
+    };
+    let dir = remote.temp.join(".codex/sessions/2026/09/01");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("rollout-2026-09-01T10-00-00-abc123.jsonl");
+    std::fs::write(&path, "{\"type\":\"session_meta\"}\n").unwrap();
+    // A directory that will not give the file up, which is what a permission
+    // error or a read-only mount looks like from the app's side.
+    let mode = std::fs::metadata(&dir).unwrap().permissions();
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+    if std::fs::remove_file(&path).is_ok() {
+        std::fs::set_permissions(&dir, mode).unwrap();
+        remote.cleanup();
+        eprintln!("SKIPPED: this test needs a user the directory mode applies to");
+        return;
+    }
+
+    let command = delete_session_command(Harness::Codex, &path.display().to_string(), "abc123")
+        .expect("the delete must build");
+    let outcome = remote.connection.run_ok("delete session", &command).await;
+    std::fs::set_permissions(&dir, mode).unwrap();
+    let survived = path.exists();
+    remote.cleanup();
+
+    assert!(
+        survived,
+        "the session must outlive a removal the server refused"
+    );
+    let err = outcome.expect_err("a delete that removed nothing must not report success");
+    assert!(
+        err.contains("Permission denied") || err.contains("still has"),
+        "the reason the server gave must reach the reader: {err}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_closed_and_read_session_carries_its_sidecar_marks() {
     let Some(mut remote) = Remote::start("sidecar").await else {
         return;

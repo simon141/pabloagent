@@ -1444,7 +1444,9 @@ function deletionTargets(s: SessionSummary): string[] {
   if (s.harness === "claude" && s.path.endsWith(".jsonl")) {
     const dir = s.path.slice(0, -".jsonl".length);
     targets.push(`${dir}/ (subagent transcripts and tool results, if any)`);
+    targets.push("its session-env record (if any)");
   }
+  targets.push("its rewind backup (if any)");
   return targets;
 }
 
