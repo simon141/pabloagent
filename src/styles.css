@@ -655,7 +655,7 @@ button {
   color: var(--muted);
 }
 .session-group:first-child {
-  padding-top: 2px;
+  padding-top: 0;
 }
 
 .session-row {
