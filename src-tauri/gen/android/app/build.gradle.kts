@@ -41,6 +41,10 @@ android {
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+        // App name lives here, not strings.xml, so the local build can rename
+        // itself. A resValue duplicating a strings.xml entry fails the build.
+        resValue("string", "app_name", "Pablo Agent")
+        resValue("string", "main_activity_title", "Pablo Agent")
     }
     buildTypes {
         getByName("debug") {
@@ -56,11 +60,14 @@ android {
             }
         }
         getByName("release") {
-            // Local builds are re-ID'd as app.pabloagent.local so they install
-            // beside the released app. Only the GitHub release workflow passes
-            // githubApk (ORG_GRADLE_PROJECT_githubApk=true) for the bare id.
+            // Local builds are re-ID'd as app.pabloagent.local and renamed so
+            // they install beside the released app. Only the GitHub release
+            // workflow passes githubApk (ORG_GRADLE_PROJECT_githubApk=true)
+            // for the bare id and name.
             if (!project.hasProperty("githubApk")) {
                 applicationIdSuffix = ".local"
+                resValue("string", "app_name", "Pablo Agent [Local]")
+                resValue("string", "main_activity_title", "Pablo Agent [Local]")
             }
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
