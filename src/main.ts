@@ -2018,6 +2018,7 @@ async function openSession(session: SessionSummary): Promise<void> {
     renderChatSessionPill();
     setTurnActive(Boolean(session.turnKey));
     goto("chat");
+    restoreComposerDraft();
     consumePendingShare();
     transcript.scrollToBottom(true);
     overlay(null);
@@ -2945,6 +2946,26 @@ let pendingDraftDeleteId: string | null = null;
 let pendingForwardToComposer = false;
 let pendingForwardCommitted = false;
 
+// Unsent composer text, kept per session so a draft typed in one chat never
+// shows in another. Memory only: closing the app discards drafts.
+const composerDrafts = new Map<string, string>();
+
+function composerDraftKey(): string {
+  return chat.threadId ? `${chat.harness}:${chat.threadId}` : "new";
+}
+
+function syncComposerDraft(value: string): void {
+  const key = composerDraftKey();
+  if (value) composerDrafts.set(key, value);
+  else composerDrafts.delete(key);
+}
+
+function restoreComposerDraft(): void {
+  const input = $<HTMLTextAreaElement>("composer-input");
+  input.value = composerDrafts.get(composerDraftKey()) ?? "";
+  input.dispatchEvent(new Event("input"));
+}
+
 function prefillComposer(text: string): void {
   const input = $<HTMLTextAreaElement>("composer-input");
   input.value = input.value.trim()
@@ -3326,6 +3347,7 @@ function enterNewChat(
   );
   renderChatSessionPill();
   goto("chat");
+  restoreComposerDraft();
   $<HTMLTextAreaElement>("composer-input").focus();
 }
 
@@ -4747,7 +4769,10 @@ function wireEvents(): void {
     input.style.height = "auto";
     input.style.height = `${Math.min(input.scrollHeight, 140)}px`;
   };
-  input.addEventListener("input", autoGrow);
+  input.addEventListener("input", () => {
+    autoGrow();
+    syncComposerDraft(input.value);
+  });
   input.addEventListener("focus", () => {
     // Give the IME a beat to open before chasing the bottom.
     setTimeout(() => transcript.scrollToBottom(true), 300);
@@ -4770,6 +4795,7 @@ function wireEvents(): void {
     const text = input.value.trim();
     if (!text || chat.turnActive) return;
     input.value = "";
+    syncComposerDraft("");
     autoGrow();
     void sendPrompt(text);
   });
