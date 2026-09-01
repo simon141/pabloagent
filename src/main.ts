@@ -2993,7 +2993,7 @@ function consumePendingDraft(): void {
   prefillComposer(pendingDraftPrompt);
   pendingDraftPrompt = null;
   toast("Draft added to the prompt");
-  // Use & delete only spends the draft once a chat actually took it.
+  // Use & remove only spends the draft once a chat actually took it.
   if (pendingDraftDeleteId !== null) {
     const id = pendingDraftDeleteId;
     pendingDraftDeleteId = null;
@@ -4181,10 +4181,27 @@ function renderDraftsList(drafts: ListedDraft[]): void {
     attachHoldMenu(row, (at) => openDraftMenu(d, at));
     row.addEventListener("click", () => {
       if (consumeLongPress(row)) return;
-      useDraft(d, !d.readOnly);
+      // Read-only drafts cannot be removed, so there is no choice to offer.
+      if (d.readOnly) useDraft(d, false);
+      else openDraftUseModal(d);
     });
     list.appendChild(row);
   }
+}
+
+let draftUseTarget: ListedDraft | null = null;
+
+function openDraftUseModal(d: ListedDraft): void {
+  draftUseTarget = d;
+  $("draft-use-name").textContent = d.id;
+  show($("modal-draft-use"), true);
+}
+
+function closeDraftUseModal(deleteAfter: boolean | null): void {
+  const d = draftUseTarget;
+  draftUseTarget = null;
+  show($("modal-draft-use"), false);
+  if (d && deleteAfter !== null) useDraft(d, deleteAfter);
 }
 
 function openDraftMenu(d: ListedDraft, at?: MenuAnchor): void {
@@ -4193,7 +4210,7 @@ function openDraftMenu(d: ListedDraft, at?: MenuAnchor): void {
       { label: "Use & keep", run: () => useDraft(d, false) },
       ...(d.readOnly
         ? []
-        : [{ label: "Use & delete", run: () => useDraft(d, true) }]),
+        : [{ label: "Use & remove", run: () => useDraft(d, true) }]),
       { label: "Duplicate…", run: () => duplicateDraft(d) },
       ...(d.readOnly
         ? []
@@ -4763,6 +4780,15 @@ function wireEvents(): void {
 
   $("drafts-close").addEventListener("click", () =>
     show($("modal-drafts"), false),
+  );
+  $("draft-use-cancel").addEventListener("click", () =>
+    closeDraftUseModal(null),
+  );
+  $("draft-use-keep").addEventListener("click", () =>
+    closeDraftUseModal(false),
+  );
+  $("draft-use-remove").addEventListener("click", () =>
+    closeDraftUseModal(true),
   );
   $("draft-name-cancel").addEventListener("click", () => {
     draftNameAction = null;

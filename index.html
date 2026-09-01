@@ -634,13 +634,27 @@
       <div class="modal-sheet drafts-sheet">
         <h2>Draft prompts</h2>
         <p class="muted small">
-          Tap a draft to use and delete it. Press and hold one for more options.
+          Tap a draft to use it. Press and hold one for more options.
         </p>
         <div id="drafts-list" class="draft-list"></div>
         <p id="drafts-status" class="drafts-status muted small" role="status" hidden></p>
         <div id="drafts-error" class="error-panel" hidden></div>
         <div class="modal-actions">
           <button id="drafts-close" type="button" class="primary">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tapping a draft asks how to spend it. Holding a row skips this
+         dialog: its menu offers the same two choices. -->
+    <div id="modal-draft-use" class="modal" hidden>
+      <div class="modal-sheet">
+        <h2>Use draft</h2>
+        <p id="draft-use-name" class="wrap"></p>
+        <div class="modal-actions">
+          <button id="draft-use-cancel" type="button" class="ghost">Cancel</button>
+          <button id="draft-use-remove" type="button" class="ghost">Use &amp; remove</button>
+          <button id="draft-use-keep" type="button" class="primary">Use &amp; keep</button>
         </div>
       </div>
     </div>
