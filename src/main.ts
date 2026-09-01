@@ -3394,7 +3394,23 @@ function modelLabelFor(harness: Harness, model: string): string {
 }
 
 function setFavorites(list: NewChatDefaults[]): void {
-  favorites = list;
+  favorites = [...list].sort((a, b) => {
+    const titleOrder = favoriteTitle(a).localeCompare(
+      favoriteTitle(b),
+      undefined,
+      {
+        numeric: true,
+        sensitivity: "base",
+      },
+    );
+    return (
+      titleOrder ||
+      favoriteSub(a).localeCompare(favoriteSub(b), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      })
+    );
+  });
   show($("sessions-favorites"), favorites.length > 0);
   renderFavoriteToggle();
 }
