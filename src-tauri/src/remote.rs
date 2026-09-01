@@ -377,7 +377,15 @@ pub struct SessionSummary {
     pub label: Option<String>,
 }
 
-type SessionMeta = (Option<i64>, Option<i64>, Option<String>);
+#[derive(Debug, Clone, Default)]
+struct SessionMeta {
+    closed_at: Option<i64>,
+    read_at: Option<i64>,
+    label: Option<String>,
+    // What this app last named the session in pi, kept because the entry pi
+    // wrote can be pushed out of the tail the picker reads.
+    name: Option<String>,
+}
 
 #[derive(Debug, Clone, Default)]
 struct TurnRecord {
@@ -426,6 +434,12 @@ fn opencode_list_sql() -> String {
 
 const OPENCODE_CACHE_DIR: &str = "${XDG_CACHE_HOME:-$HOME/.cache}/pabloagent/opencode";
 
+// pi appends its `session_info` name entry and keeps writing after it, so the
+// picker reads back only the tail of a file it polls every couple of seconds.
+// A name pushed out of that window survives in the sidecar record the rename
+// writes beside it.
+const PI_NAME_TAIL_BYTES: usize = 64 * 1024;
+
 pub fn list_sessions_command(opencode_bin: &str) -> String {
     let turns = turn_records_command();
     let opencode = quote(opencode_bin);
@@ -462,6 +476,9 @@ pub fn list_sessions_command(opencode_bin: &str) -> String {
              printf 'PT_P\\t'; head -n 80 \"$path\" 2>/dev/null \
                | grep -m1 -E '\"role\"[[:space:]]*:[[:space:]]*\"user\"' \
                | head -c 1200 || true; printf '\\n'\n\
+             printf 'PT_PN\\t'; tail -c {PI_NAME_TAIL_BYTES} \"$path\" 2>/dev/null \
+               | grep -E '^\\{{[[:space:]]*\"type\"[[:space:]]*:[[:space:]]*\"session_info\"' \
+               | tail -n 1 | head -c 1200 || true; printf '\\n'\n\
            else\n\
              printf 'PT_M\\t'; head -n 1 \"$path\" 2>/dev/null | head -c 4000; printf '\\n'\n\
              printf 'PT_P\\t'; head -n 60 \"$path\" 2>/dev/null \
@@ -509,7 +526,7 @@ fn session_meta_records_command() -> String {
            -printf '%T@\\t%f\\n' 2>/dev/null \
            | sort -t\"$tab\" -k1,1 -rn | head -n {SESSION_META_LIMIT} \
            | while IFS=\"$tab\" read -r _mt name; do\n\
-           for k in closed read label; do\n\
+           for k in closed read label name; do\n\
              v=$(tr -d '\\n' <\"$sm/$name/$k\" 2>/dev/null)\n\
              [ -n \"$v\" ] && printf 'PT_C\\t%s\\t%s\\t%s\\n' \"$name\" \"$k\" \"$v\"\n\
            done\n\
@@ -568,6 +585,60 @@ pub fn set_session_label_command(
          touch -- \"$d\"",
         write_file("\"$d/label\"", &format!("{label}\n"))
     ))
+}
+
+pub const PI_SESSION_NAME_MAX: usize = 120;
+
+/// Names a pi session in pi's own record, which is what `pi --name` writes.
+/// Only pi has a name of its own; every other harness gets the sidecar label.
+pub fn set_pi_session_name_command(
+    pi_bin: &str,
+    path: &str,
+    thread_id: &str,
+    name: &str,
+) -> Result<String, String> {
+    let path = path.trim();
+    if !path.starts_with('/') || !path.ends_with(".jsonl") {
+        return Err(format!("'{path}' does not name a session file"));
+    }
+    let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
+    if name.is_empty() {
+        return Err("pi refuses an empty session name, so this needs one".to_string());
+    }
+    if name.chars().count() > PI_SESSION_NAME_MAX {
+        return Err(format!(
+            "a session name is at most {PI_SESSION_NAME_MAX} characters"
+        ));
+    }
+    // Renaming appends to the session file, so it waits for a turn exactly as
+    // deleting and rewinding do.
+    let mut cmd = session_busy_guard(Harness::Pi, thread_id, path)?;
+    // `-p` is what makes pi set the name and quit, and `</dev/null` is what
+    // keeps it from waiting on stdin and running whatever arrives as a turn.
+    // The session is addressed by file so no working directory is implied. The
+    // node rule is the probe's, see `probe_command`.
+    cmd.push_str(&format!(
+        "NO_COLOR=1 bash -lc 'p=$(command -v \"$0\" 2>/dev/null || echo \"$0\"); \
+         if [ -x /usr/bin/node ] && head -c 64 \"$p\" 2>/dev/null | grep -q \"^#!.*node\"; then \
+         exec /usr/bin/node \"$p\" -p --session \"$1\" --name \"$2\"; \
+         else exec \"$p\" -p --session \"$1\" --name \"$2\"; fi' {} {} {} \
+         </dev/null >/dev/null || exit 1\n",
+        quote(pi_bin),
+        quote(path),
+        quote(&name)
+    ));
+    // The same name in this app's own record, because pi keeps appending to the
+    // session and the picker reads back only the tail of the file.
+    if let Ok(record) = session_meta_name(Harness::Pi, thread_id) {
+        cmd.push_str(&format!(
+            "d=\"{SESSION_META_DIR}/{record}\"\n\
+             mkdir -p -- \"$d\"\n\
+             {}\
+             touch -- \"$d\"\n",
+            write_file("\"$d/name\"", &format!("{name}\n"))
+        ));
+    }
+    Ok(cmd)
 }
 
 const DRAFT_PROMPTS_DIR: &str = "${XDG_DATA_HOME:-$HOME/.local/share}/pabloagent/draft-prompts";
@@ -756,6 +827,24 @@ fn claude_prompt_text(line: &str) -> String {
     }
 }
 
+fn pi_session_name(line: &str) -> String {
+    match serde_json::from_str::<serde_json::Value>(line) {
+        Ok(value) => {
+            if value.pointer("/type").and_then(|t| t.as_str()) != Some("session_info") {
+                return String::new();
+            }
+            value
+                .pointer("/name")
+                .and_then(|n| n.as_str())
+                .unwrap_or_default()
+                .to_string()
+        }
+        // An entry longer than its byte cut, or one pi was still writing when
+        // the tail was read, never parses; the grep already proved the type.
+        Err(_) => dig_string(line, "name"),
+    }
+}
+
 fn opencode_title_text(line: &str) -> String {
     match serde_json::from_str::<serde_json::Value>(line) {
         Ok(value) => value
@@ -938,15 +1027,29 @@ pub fn parse_sessions(output: &str) -> Vec<SessionSummary> {
             };
             let entry = metas.entry(name.trim().to_string()).or_default();
             match key.trim() {
-                "closed" => entry.0 = value.trim().parse::<i64>().ok(),
-                "read" => entry.1 = value.trim().parse::<i64>().ok(),
+                "closed" => entry.closed_at = value.trim().parse::<i64>().ok(),
+                "read" => entry.read_at = value.trim().parse::<i64>().ok(),
                 "label" => {
                     let label = value.trim();
                     if !label.is_empty() {
-                        entry.2 = Some(label.to_string());
+                        entry.label = Some(label.to_string());
+                    }
+                }
+                "name" => {
+                    let name = value.trim();
+                    if !name.is_empty() {
+                        entry.name = Some(name.to_string());
                     }
                 }
                 _ => {}
+            }
+        } else if let Some(rest) = line.strip_prefix("PT_PN\t") {
+            // Only pi rows emit one, and only when the grep matched.
+            if let Some(current) = out.last_mut() {
+                let name = pi_session_name(rest);
+                if !name.trim().is_empty() {
+                    current.title = Some(name);
+                }
             }
         } else if let Some(rest) = line.strip_prefix("PT_P\t") {
             if let Some(current) = out.last_mut() {
@@ -965,12 +1068,15 @@ pub fn parse_sessions(output: &str) -> Vec<SessionSummary> {
     // Attached last, because a turn is matched by the session's id or path and
     // neither is known until its header line has been read.
     for session in &mut out {
-        if let Some((closed_at, read_at, label)) =
-            metas.get(&format!("{}-{}", session.harness.tag(), session.id))
-        {
-            session.closed_at = *closed_at;
-            session.read_at = *read_at;
-            session.label = label.clone();
+        if let Some(meta) = metas.get(&format!("{}-{}", session.harness.tag(), session.id)) {
+            session.closed_at = meta.closed_at;
+            session.read_at = meta.read_at;
+            session.label = meta.label.clone();
+            // The file is the truth about a pi name; the record only answers
+            // for the sessions whose entry is now too far from the tail.
+            if session.title.is_none() {
+                session.title = meta.name.clone();
+            }
         }
         let Some(turn) = turns.iter().find(|t| t.matches(session)) else {
             continue;
@@ -1991,6 +2097,97 @@ mod tests {
 
         assert!(set_session_label_command(Harness::Codex, "a b", "x").is_err());
         assert!(set_session_label_command(Harness::Codex, "", "x").is_err());
+    }
+
+    #[test]
+    fn a_pi_session_is_named_by_pi_itself_and_remembered_beside_it() {
+        let path = "/h/.pi/agent/sessions/--w--/2026-07-30T03-24-08-942Z_019fb10d-076e-7df4-b072-af353ac76046.jsonl";
+        let id = "019fb10d-076e-7df4-b072-af353ac76046";
+        let cmd = set_pi_session_name_command("pi", path, id, "  PREVIEW\n VER1  ").unwrap();
+
+        // The rename is a write to the session file, so it waits like the rest.
+        assert!(cmd.contains(BUSY_MARKER), "{cmd}");
+        assert!(cmd.contains(&format!("locks/pi-{id}")), "{cmd}");
+        assert!(cmd.contains("-p --session \"$1\" --name \"$2\""), "{cmd}");
+        assert!(
+            cmd.contains(&format!("fi' 'pi' '{path}' 'PREVIEW VER1'")),
+            "{cmd}"
+        );
+        // Left on stdin, pi waits for a prompt and runs it as a turn.
+        assert!(cmd.contains("</dev/null"), "{cmd}");
+        // The same node rule as every other one-shot pi command.
+        assert!(cmd.contains("/usr/bin/node"), "{cmd}");
+        // And the app's own record of that name, for when the entry pi wrote
+        // has been pushed out of the tail the picker reads.
+        let encoded = base64::engine::general_purpose::STANDARD.encode(b"PREVIEW VER1\n");
+        assert!(
+            cmd.contains(&format!("printf %s '{encoded}' | base64 -d >\"$d/name\"")),
+            "{cmd}"
+        );
+        assert!(cmd.contains(&format!("session-meta/pi-{id}")), "{cmd}");
+
+        // pi refuses a blank name, so this one never reaches the server.
+        assert!(set_pi_session_name_command("pi", path, id, " \n ").is_err());
+        assert!(
+            set_pi_session_name_command("pi", path, id, &"n".repeat(PI_SESSION_NAME_MAX + 1))
+                .is_err()
+        );
+        assert!(set_pi_session_name_command("pi", "sessions/s.jsonl", id, "x").is_err());
+        assert!(set_pi_session_name_command("pi", "/h/s.txt", id, "x").is_err());
+        assert!(set_pi_session_name_command("pi", path, "a b", "x").is_err());
+    }
+
+    #[test]
+    fn a_pi_row_carries_the_name_pi_recorded() {
+        let output = concat!(
+            "PT_C\tpi-119fb10d-076e-7df4-b072-af353ac76046\tname\tRemembered name\n",
+            "PT_S\tpi\t1785300100\t/h/.pi/agent/sessions/--w--/2026-07-30T03-24-08-942Z_019fb10d-076e-7df4-b072-af353ac76046.jsonl\n",
+            r#"PT_M	{"type":"session","version":3,"id":"019fb10d-076e-7df4-b072-af353ac76046","cwd":"/w"}"#,
+            "\n",
+            r#"PT_P	{"type":"message","message":{"role":"user","content":[{"type":"text","text":"what version is on preview"}]}}"#,
+            "\n",
+            r#"PT_PN	{"type":"session_info","id":"0609b17b","parentId":"6fc5eacf","name":"PREVIEW VER1"}"#,
+            "\n",
+            "PT_S\tpi\t1785300000\t/h/.pi/agent/sessions/--w--/2026-07-30T03-24-08-942Z_119fb10d-076e-7df4-b072-af353ac76046.jsonl\n",
+            r#"PT_M	{"type":"session","version":3,"id":"119fb10d-076e-7df4-b072-af353ac76046","cwd":"/w"}"#,
+            "\n",
+            r#"PT_P	{"type":"message","message":{"role":"user","content":[{"type":"text","text":"unnamed work"}]}}"#,
+            "\n",
+            "PT_PN\t\n",
+        );
+        let sessions = parse_sessions(output);
+        assert_eq!(sessions.len(), 2);
+        assert_eq!(sessions[0].title.as_deref(), Some("PREVIEW VER1"));
+        assert_eq!(sessions[0].preview, "what version is on preview");
+        // No entry near the tail, so the row falls back to the app's record.
+        assert_eq!(sessions[1].title.as_deref(), Some("Remembered name"));
+
+        // A prompt that quotes a session_info entry is not one: the probe reads
+        // whole lines that begin with the entry, and the parse checks the type.
+        assert_eq!(
+            pi_session_name(
+                r#"{"type":"message","message":{"content":"{\"type\":\"session_info\",\"name\":\"nope\"}"}}"#
+            ),
+            ""
+        );
+        assert_eq!(
+            pi_session_name(r#"{ "type" : "session_info", "name" : "spaced out" }"#),
+            "spaced out"
+        );
+
+        let cmd = list_sessions_command("opencode");
+        assert!(cmd.contains("PT_PN"), "{cmd}");
+        // The name probe must stay a bounded read, never a whole-file grep, and
+        // must match the entry only where pi writes it: at the head of a line.
+        assert!(
+            cmd.contains(
+                "tail -c 65536 \"$path\" 2>/dev/null \
+               | grep -E '^\\{[[:space:]]*\"type\"[[:space:]]*:[[:space:]]*\"session_info\"' \
+               | tail -n 1"
+            ),
+            "{cmd}"
+        );
+        assert!(cmd.contains("for k in closed read label name"), "{cmd}");
     }
 
     #[test]

@@ -116,6 +116,14 @@ export const setSessionLabel = (
   label: string,
 ) => invoke<void>("set_session_label", { harness, threadId, label });
 
+// pi is the only harness with a name of its own, written by the CLI into the
+// session record; every other harness has the sidecar label above.
+export const setPiSessionName = (
+  path: string,
+  threadId: string,
+  name: string,
+) => invoke<void>("set_pi_session_name", { path, threadId, name });
+
 export const readRemoteFile = (path: string) =>
   invoke<RemoteFile>("read_remote_file", { path });
 

@@ -21,8 +21,10 @@ configuration.
 - Keep local prompt echoes until a new user-message ID arrives. Repeated prompt
   text is not an identity.
 - Guard delete and rewind in the same remote command as the mutation.
-- Session names are Pablo sidecar labels only. Never spawn `codex app-server`:
-  it is too expensive for the session-list poll.
+- Labels are Pablo sidecar records. pi is the only CLI with a name of its own:
+  `pi --name` writes it and the picker reads back a bounded tail, so keep the
+  sidecar copy the rename leaves for names that scroll out of it. Never spawn
+  `codex app-server`: it is too expensive for the session-list poll.
 - Treat opencode's database as read-only. opencode sessions cannot be deleted or
   rewound.
 - Rewind only the session record. Keep one `.rewind-bak` tail and leave
@@ -35,7 +37,8 @@ configuration.
   links, and preserve remote path validation and shell quoting.
 - Codex workspace trust is the only persistent remote config change. Preserve
   unsupported `config.toml` shapes and all unrelated bytes. pi receives `-a`
-  per turn.
+  per turn, and a rename runs `-p` with stdin closed, or pi takes whatever
+  stdin offers as a prompt and runs a turn.
 
 When CLI behavior is uncertain, run the CLI and add a scrubbed fixture or
 regression test.

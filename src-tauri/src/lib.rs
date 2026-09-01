@@ -12,8 +12,9 @@ pub mod testing {
         close_session_command, delete_session_command, download_remote_file_command,
         list_sessions_command, mark_session_read_command, parse_pretty_session, parse_sessions,
         parse_turn_poll, poll_turn_command, pretty_session_command, read_rollout_command,
-        refused_because_busy, rewind_session_command, start_turn_command, stop_turn_command,
-        Harness, SessionSummary, TurnPoll, TurnRequest, TurnState, SCRIPT,
+        refused_because_busy, rewind_session_command, set_pi_session_name_command,
+        start_turn_command, stop_turn_command, Harness, SessionSummary, TurnPoll, TurnRequest,
+        TurnState, SCRIPT,
     };
     pub use crate::ssh::{connect_full, ByteSink, ConnectOutcome, Connection, HostKeyPrompt};
     pub use crate::store::{KnownHost, SshSettings};
@@ -268,6 +269,35 @@ async fn set_session_label(
     state
         .diagnostics
         .push("remote", format!("labelled session {thread_id}"));
+    Ok(())
+}
+
+#[tauri::command]
+async fn set_pi_session_name(
+    state: State<'_, AppState>,
+    path: String,
+    thread_id: String,
+    name: String,
+) -> Result<(), String> {
+    let mut guard = state.connected("naming a session").await?;
+    let connection = guard.as_mut().expect("checked");
+    let command = remote::set_pi_session_name_command(
+        &connection.settings().pi_bin,
+        &path,
+        &thread_id,
+        &name,
+    )?;
+    let output = connection.run_ok("set pi session name", &command).await?;
+    if let Some(turn) = remote::refused_because_busy(&output) {
+        state.diagnostics.push(
+            "remote",
+            format!("refused to name session {path}: turn {turn} is running"),
+        );
+        return Err(remote::busy_session_message("renamed", turn));
+    }
+    state
+        .diagnostics
+        .push("remote", format!("named pi session {thread_id}"));
     Ok(())
 }
 
@@ -920,6 +950,7 @@ pub fn run() {
             mark_session_read,
             close_session,
             set_session_label,
+            set_pi_session_name,
             connect,
             accept_host_key,
             is_connected,

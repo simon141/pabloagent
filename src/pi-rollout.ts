@@ -392,6 +392,18 @@ export function renderPiSession(
   return out;
 }
 
+// pi appends a `session_info` entry every time the session is named, so the
+// last one is the name it has now.
+export function piSessionName(entries: PiEntry[]): string {
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    const entry = entries[i];
+    if (entry.type !== "session_info") continue;
+    const name = typeof entry.name === "string" ? entry.name.trim() : "";
+    if (name) return name;
+  }
+  return "";
+}
+
 function piBreakdown(usage: Record<string, unknown>): TokenBreakdown | null {
   const num = (key: string) => Number(usage[key] ?? 0) || 0;
   const cost = (usage.cost ?? {}) as Record<string, unknown>;

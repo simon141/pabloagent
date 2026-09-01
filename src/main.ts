@@ -50,6 +50,7 @@ import {
   modelsFor,
   piModelChoices,
 } from "./models";
+import { piSessionName } from "./pi-rollout";
 import { anchorMenu, type MenuAnchor } from "./platform";
 import {
   type CodexRateLimits,
@@ -1411,6 +1412,16 @@ function openSessionMenu(s: SessionSummary, at?: MenuAnchor): void {
             () => toast("Copy failed"),
           ),
       },
+      // Only pi has a name of its own to change; the rest carry the app's
+      // label, which the chat's own menu sets.
+      ...(s.harness === "pi"
+        ? [
+            {
+              label: s.title ? "Rename session…" : "Name session…",
+              run: () => openNameModal(renameTargetFor(s)),
+            },
+          ]
+        : []),
       harness.cannotDeleteReason
         ? {
             label: `Delete from server — ${harness.cannotDeleteReason}`,
@@ -1950,6 +1961,18 @@ function adoptAiTitle(entries: SessionEntry[]): void {
   }
 }
 
+// The picker reads a pi name out of the tail of the file it polls; the open
+// chat has the whole session in hand, so it can say for certain.
+function adoptPiName(entries: SessionEntry[]): void {
+  if (chat.harness !== "pi") return;
+  const name = piSessionName(entries);
+  if (!name || name === chat.title) return;
+  chat.title = name;
+  const row = sessions.find(isOpenSession);
+  if (row) row.title = name;
+  renderChatSessionPill();
+}
+
 const wholeLines = (text: string): string => {
   const cut = text.lastIndexOf("\n");
   return cut < 0 ? "" : text.slice(0, cut + 1);
@@ -2003,6 +2026,7 @@ async function openSession(session: SessionSummary): Promise<void> {
         : 1 + slice.lineCount;
     chat.turnKey = session.turnKey;
     adoptAiTitle(chat.entries);
+    adoptPiName(chat.entries);
     const facts = sessionFacts(chat.harness, chat.entries);
     chat.model = facts.model;
     chat.effort = facts.effort;
@@ -2158,6 +2182,7 @@ async function followTurn(
       }
       chat.cursor += poll.lineCount;
       adoptAiTitle(fresh);
+      adoptPiName(fresh);
       applyRollout();
       setTurnActive(true);
     }
@@ -2401,7 +2426,8 @@ async function rewindChat(keepLines: number, prompt: string): Promise<void> {
 }
 
 async function reloadChat(): Promise<void> {
-  const { harness, threadId, rolloutPath, cwd, permissionMode, title } = chat;
+  const { harness, threadId, rolloutPath, cwd, permissionMode, title, label } =
+    chat;
   if (!rolloutPath) return;
   const slice = await readWholeRollout(rolloutPath, harness);
   resetChat();
@@ -2411,10 +2437,14 @@ async function reloadChat(): Promise<void> {
   chat.cwd = cwd;
   chat.permissionMode = permissionMode;
   chat.title = title;
+  // The label is this app's, not the session's: re-reading the file cannot
+  // recover one, so it has to survive the reset.
+  chat.label = label;
   chat.entries = parseSessionLines(slice.lines);
   chat.file = { bytes: wholeLineBytes(slice.lines), lines: slice.lineCount };
   chat.cursor = 1 + slice.lineCount;
   adoptAiTitle(chat.entries);
+  adoptPiName(chat.entries);
   const facts = sessionFacts(chat.harness, chat.entries);
   chat.model = facts.model;
   chat.effort = facts.effort;
@@ -3550,6 +3580,7 @@ function openChatMenu(): void {
   renderChatMenuRefresh();
   renderChatMenuSessionData();
   renderChatMenuSessionPretty();
+  renderChatMenuName();
   renderChatMenuLabel();
   renderChatMenuClose();
   renderChatMenuDelete();
@@ -3630,6 +3661,7 @@ async function refreshOpenChat(): Promise<void> {
     seenCategories.clear();
     transcript.clear();
     adoptAiTitle(chat.entries);
+    adoptPiName(chat.entries);
     const facts = sessionFacts(chat.harness, chat.entries);
     chat.model = facts.model;
     chat.effort = facts.effort;
@@ -3709,6 +3741,135 @@ async function saveSessionLabel(): Promise<void> {
   } finally {
     save.disabled = false;
   }
+}
+
+// The session pi is asked to name, addressed the way pi wants it: by file.
+interface RenameTarget {
+  path: string;
+  threadId: string;
+  name: string;
+  subtitle: string;
+}
+
+let renameTarget: RenameTarget | null = null;
+
+function renameTargetFor(s: SessionSummary): RenameTarget {
+  return {
+    path: s.path,
+    threadId: s.id,
+    name: s.title ?? "",
+    subtitle: truncateLabel(s.preview, 80) ?? "(no prompt yet)",
+  };
+}
+
+function renderChatMenuName(): void {
+  const item = $<HTMLButtonElement>("chat-menu-name");
+  if (chat.harness !== "pi") {
+    item.disabled = true;
+    item.textContent = "Rename session — pi sessions only";
+  } else if (!chat.threadId || !chat.rolloutPath) {
+    item.disabled = true;
+    item.textContent = "Rename session — no session saved yet";
+  } else if (chat.turnActive) {
+    // pi appends the name to the session file the running turn is writing.
+    item.disabled = true;
+    item.textContent = "Rename session — turn in progress";
+  } else {
+    item.disabled = false;
+    item.textContent = chat.title ? "Rename session…" : "Name session…";
+  }
+}
+
+function openNameModal(target: RenameTarget): void {
+  renameTarget = target;
+  hideError("name-error");
+  $("name-original").textContent = `Session: ${target.subtitle}`;
+  const input = $<HTMLInputElement>("name-input");
+  input.value = target.name;
+  show($("modal-name"), true);
+  input.focus();
+  input.select();
+}
+
+function openChatNameModal(): void {
+  if (chat.harness !== "pi") {
+    showAlert(
+      "Cannot rename this session",
+      "Only pi keeps a name of its own. Use “Set label…” to name this" +
+        " session in this app instead.",
+    );
+    return;
+  }
+  const path = chat.rolloutPath;
+  if (!chat.threadId || !path) {
+    showAlert(
+      "No session yet",
+      "This chat has no session on the server until its first message is" +
+        " sent. Send one, then it can be named.",
+    );
+    return;
+  }
+  const current = sessions.find(isOpenSession);
+  openNameModal({
+    path,
+    threadId: chat.threadId,
+    name: chat.title ?? current?.title ?? "",
+    subtitle: truncateLabel(current?.preview ?? "", 80) ?? "(no prompt yet)",
+  });
+}
+
+async function saveSessionName(): Promise<void> {
+  const target = renameTarget;
+  if (!target) return;
+  // Collapsed the way the server collapses it, so the input agrees with the
+  // entry pi writes.
+  const name = $<HTMLInputElement>("name-input")
+    .value.replace(/\s+/g, " ")
+    .trim();
+  hideError("name-error");
+  if (!name) {
+    showError(
+      "name-error",
+      "Enter a name",
+      "pi has no blank session name — a session either has one or keeps the one it has.",
+    );
+    return;
+  }
+  const save = $<HTMLButtonElement>("name-save");
+  save.disabled = true;
+  try {
+    await api.setPiSessionName(target.path, target.threadId, name);
+  } catch (err) {
+    showError("name-error", "Could not rename the session", err);
+    return;
+  } finally {
+    save.disabled = false;
+  }
+  const row = sessions.find(
+    (s) => s.harness === "pi" && s.id === target.threadId,
+  );
+  if (row) row.title = name;
+  show($("modal-name"), false);
+  toast("Session renamed");
+  // pi records the name as an entry in the session itself, so a chat holding
+  // that session re-reads it: nothing else would put the card on screen, and
+  // going back to an open chat does not re-read it either.
+  if (chat.harness === "pi" && chat.threadId === target.threadId) {
+    chat.title = name;
+    overlay("Reloading chat…");
+    try {
+      await reloadChat();
+    } catch (err) {
+      showAlert(
+        "Could not reload the chat",
+        err instanceof Error ? err.message : String(err),
+      );
+    } finally {
+      overlay(null);
+    }
+  }
+  renderChatSessionPill();
+  renderSessionList();
 }
 
 function renderChatMenuClose(): void {
@@ -4667,6 +4828,10 @@ function wireEvents(): void {
     void openPrettySessionFile();
   });
   $("chat-menu-filters").addEventListener("click", () => openFiltersModal());
+  $("chat-menu-name").addEventListener("click", () => {
+    closeChatMenu();
+    openChatNameModal();
+  });
   $("chat-menu-label").addEventListener("click", () => {
     closeChatMenu();
     openLabelModal();
@@ -4720,6 +4885,16 @@ function wireEvents(): void {
     if (event.key === "Enter") {
       event.preventDefault();
       void saveSessionLabel();
+    }
+  });
+  $("name-cancel").addEventListener("click", () =>
+    show($("modal-name"), false),
+  );
+  $("name-save").addEventListener("click", () => void saveSessionName());
+  $<HTMLInputElement>("name-input").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void saveSessionName();
     }
   });
   $("chat-interrupt").addEventListener("click", () => void interruptTurn());

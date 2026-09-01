@@ -70,6 +70,7 @@ at once.
 - Save reusable draft prompts as Markdown files on the remote host, and load
   plain `.txt` prompts without modifying them.
 - Copy, resend, or send a prompt to another chat.
+- Label any session for this app, and rename a pi session in pi's own record.
 - Rewind and delete file-based sessions when no turn is writing them. Rewind
   changes the conversation record only, not files changed by the agent.
 - Show context usage and estimated cost when the session contains enough data.
@@ -78,8 +79,9 @@ at once.
   completed turn remains on the server.
 
 opencode sessions cannot be deleted or rewound because Pablo treats its database
-as read-only. Session names are Pablo-side labels stored in a sidecar file;
-native CLI session names are neither read nor written.
+as read-only. Labels are Pablo-side and stored in a sidecar file. pi is the only
+CLI with a session name of its own: renaming a pi session runs `pi --name`, so
+the name is in pi's session record and pi shows it too.
 
 ## Security model
 

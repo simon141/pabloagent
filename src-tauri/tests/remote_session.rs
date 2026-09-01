@@ -20,9 +20,9 @@ use pabloagent_lib::testing::{
     close_session_command, connect_full, delete_session_command, download_remote_file_command,
     list_sessions_command, mark_session_read_command, parse_pretty_session, parse_sessions,
     parse_turn_poll, poll_turn_command, pretty_session_command, read_rollout_command,
-    refused_because_busy, rewind_session_command, start_turn_command, stop_turn_command,
-    ConnectOutcome, Connection, Diagnostics, Download, Harness, Header, KnownHost, Progress,
-    SessionSummary, SshSettings, TurnPoll, TurnRequest, TurnState,
+    refused_because_busy, rewind_session_command, set_pi_session_name_command, start_turn_command,
+    stop_turn_command, ConnectOutcome, Connection, Diagnostics, Download, Harness, Header,
+    KnownHost, Progress, SessionSummary, SshSettings, TurnPoll, TurnRequest, TurnState,
 };
 use russh::keys::ssh_key::{HashAlg, PrivateKey};
 use russh::server::{Auth, ChannelOpenHandle, Handler, Msg, Server, Session};
@@ -393,12 +393,19 @@ if args[:1] == ["--list-models"]:
     raise SystemExit(0)
 
 mode, session, model, thinking, approve = "", "", "", "", False
+session_file, name, print_mode = "", "", False
 while args:
     a = args.pop(0)
     if a == "--mode":
         mode = args.pop(0)
     elif a == "--session-id":
         session = args.pop(0)
+    elif a == "--session":
+        session_file = args.pop(0)
+    elif a in ("-n", "--name"):
+        name = args.pop(0)
+    elif a in ("-p", "--print"):
+        print_mode = True
     elif a == "--model":
         model = args.pop(0)
     elif a == "--thinking":
@@ -411,6 +418,27 @@ while args:
         # conversation.
         sys.stderr.write("stub: unexpected option %s\n" % a)
         raise SystemExit(2)
+# `--name` with `-p` names the session and quits, appending the entry the real
+# one appends (measured on 0.84.3). It happens before any prompt is read, and
+# the real one would read stdin as a prompt afterwards, so a stub that got here
+# with stdin still open must fail: that is a turn the app never asked for.
+if name:
+    if not print_mode:
+        sys.stderr.write("stub: naming a session must be non-interactive (-p)\n")
+        raise SystemExit(2)
+    if not session_file:
+        sys.stderr.write("stub: nothing said which session to name\n")
+        raise SystemExit(2)
+    with open(session_file, "a") as fh:
+        fh.write(json.dumps({"type": "session_info", "id": "5e551011",
+                             "parentId": None,
+                             "timestamp": "2026-07-30T03:44:08.942Z",
+                             "name": name}) + "\n")
+    if sys.stdin.read():
+        sys.stderr.write("stub: a prompt arrived on stdin during a rename\n")
+        raise SystemExit(2)
+    raise SystemExit(0)
+
 if mode != "json":
     sys.stderr.write("stub: the app must ask for --mode json\n")
     raise SystemExit(2)
@@ -2076,6 +2104,136 @@ async fn a_closed_and_read_session_carries_its_sidecar_marks() {
         "the stopped turn must not refuse the delete: {delete}"
     );
     assert!(record_gone, "the record goes with its session");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn naming_a_pi_session_writes_pi_s_own_record_and_the_picker_reads_it_back() {
+    let Some(mut remote) = Remote::start("pi-name").await else {
+        return;
+    };
+    let cwd = remote.temp.display().to_string();
+    let request = |prompt: &str, thread: &str| TurnRequest {
+        prompt: prompt.to_string(),
+        harness: Harness::Pi,
+        thread_id: thread.to_string(),
+        cwd: cwd.clone(),
+        model: String::new(),
+        effort: String::new(),
+        permission_mode: String::new(),
+        session_id: "6f14e45f-ceea-467a-9d0f-2b0d0d0d0d21".to_string(),
+    };
+    if let Err(e) = remote
+        .start_turn("piname0001", &request("say hello", ""))
+        .await
+    {
+        remote.cleanup();
+        panic!("the turn failed to start: {e}");
+    }
+    let (thread, path) = match remote.session_once_written().await {
+        Some(s) => (s.id.clone(), s.path.clone()),
+        None => {
+            remote.cleanup();
+            panic!("the turn should have created a session");
+        }
+    };
+    remote.follow("piname0001").await;
+
+    let pi_bin = remote.connection.settings().pi_bin.clone();
+    // Collapsed on the way out, so what pi records is what the picker shows.
+    let named = remote
+        .run_guarded(
+            "name session",
+            set_pi_session_name_command(&pi_bin, &path, &thread, "  PREVIEW\n VER1  "),
+        )
+        .await;
+    let recorded = std::fs::read_to_string(&path).expect("the session file is on this disk");
+    let last = recorded.lines().last().unwrap_or_default().to_string();
+    let listed = remote
+        .sessions()
+        .await
+        .into_iter()
+        .find(|s| s.id == thread)
+        .and_then(|s| s.title);
+
+    // The server env pins XDG_CACHE_HOME to <temp>/cache — see Remote::start.
+    let record = remote
+        .temp
+        .join("cache/pabloagent/session-meta")
+        .join(format!("pi-{thread}"))
+        .join("name");
+    let remembered = std::fs::read_to_string(&record).unwrap_or_default();
+
+    // pi keeps appending after the name, and the picker reads back only the
+    // tail of the file: past that point the name comes from the record.
+    let filler = (0..600)
+        .map(|i| {
+            format!(
+                "{{\"type\":\"message\",\"id\":\"f{i:04}\",\"message\":{{\"role\":\"assistant\",\
+                 \"content\":[{{\"type\":\"text\",\"text\":\"{}\"}}]}}}}\n",
+                "x".repeat(120)
+            )
+        })
+        .collect::<String>();
+    assert!(filler.len() > 64 * 1024, "the filler must bury the entry");
+    std::fs::write(&path, format!("{recorded}{filler}")).expect("the session file is writable");
+    let buried = remote
+        .sessions()
+        .await
+        .into_iter()
+        .find(|s| s.id == thread)
+        .and_then(|s| s.title);
+
+    // And a rename waits for a turn, exactly as a delete or a rewind does.
+    if let Err(e) = remote
+        .start_turn("piname0002", &request("please sleep-forever now", &thread))
+        .await
+    {
+        remote.cleanup();
+        panic!("the resumed turn failed to start: {e}");
+    }
+    let during = remote
+        .run_guarded(
+            "name session",
+            set_pi_session_name_command(&pi_bin, &path, &thread, "TOO LATE"),
+        )
+        .await;
+    let untouched = !std::fs::read_to_string(&path)
+        .unwrap_or_default()
+        .contains("TOO LATE");
+    let _ = remote
+        .connection
+        .run_ok("stop turn", &stop_turn_command("piname0002"))
+        .await;
+    remote.cleanup();
+
+    assert!(
+        refused_because_busy(&named).is_none(),
+        "a finished turn must not refuse the rename: {named}"
+    );
+    assert!(
+        last.contains(r#""session_info""#) && last.contains(r#""PREVIEW VER1""#),
+        "pi must have appended its own name entry, got: {last}"
+    );
+    assert_eq!(
+        listed,
+        Some("PREVIEW VER1".to_string()),
+        "and the picker must read that name back off the file"
+    );
+    assert_eq!(remembered.trim(), "PREVIEW VER1");
+    assert_eq!(
+        buried,
+        Some("PREVIEW VER1".to_string()),
+        "a name pushed out of the tail must still reach the picker"
+    );
+    assert_eq!(
+        refused_because_busy(&during),
+        Some("piname0002"),
+        "the rename must name the turn in the way: {during:?}"
+    );
+    assert!(
+        untouched,
+        "and a refused rename must not reach pi at all: {path}"
+    );
 }
 
 async fn a_row_reports_the_state_of_its_last_turn(name: &str, harness: Harness) {

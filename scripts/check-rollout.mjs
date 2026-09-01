@@ -70,6 +70,21 @@ const filtersLoaded = await import(filtersBundle);
 const { categoriesOf, filtersFor, isHidden } =
   filtersLoaded.default ?? filtersLoaded;
 
+const piBundle = join(work, "pi-rollout.cjs");
+execFileSync(
+  join(repo, "node_modules/.bin/esbuild"),
+  [
+    join(repo, "src/pi-rollout.ts"),
+    "--bundle",
+    "--format=cjs",
+    "--log-level=error",
+    `--outfile=${piBundle}`,
+  ],
+  { stdio: ["ignore", "inherit", "inherit"] },
+);
+const piLoaded = await import(piBundle);
+const { piSessionName } = piLoaded.default ?? piLoaded;
+
 const failures = [];
 const check = (ok, what, detail = "") => {
   if (!ok) failures.push(`${what}${detail ? `\n    ${detail}` : ""}`);
@@ -597,8 +612,8 @@ console.log("\n# pi session\n");
 
 const piEntries = fixture("pi-session.jsonl");
 check(
-  piEntries.length === 9,
-  "the pi fixture parses to 9 entries",
+  piEntries.length === 10,
+  "the pi fixture parses to 10 entries",
   `got ${piEntries.length}`,
 );
 
@@ -661,9 +676,28 @@ check(
     isHidden("pi", ["reasoning"], plaintextThought),
   "the broad reasoning filter still covers both thought forms",
 );
+// The name `pi --name` writes, which the picker and the chat pill both show.
 check(
-  ["session", "model_change", "thinking_level_change"].every((kind) =>
-    piItems.some((i) => i.type === "contextEntry" && i.origin === kind),
+  piSessionName(piEntries) === "Preview versions",
+  "the session name is the last one pi recorded",
+  JSON.stringify(piSessionName(piEntries)),
+);
+check(
+  piSessionName(piEntries.filter((e) => e.type !== "session_info")) === "" &&
+    piSessionName([{ type: "session_info", name: "  " }]) === "",
+  "a session pi never named, or named blank, has no name",
+);
+check(
+  piSessionName([
+    { type: "session_info", name: "first" },
+    { type: "session_info", name: "second" },
+  ]) === "second",
+  "and a renamed session keeps the newest entry, not the first",
+);
+check(
+  ["session", "model_change", "thinking_level_change", "session_info"].every(
+    (kind) =>
+      piItems.some((i) => i.type === "contextEntry" && i.origin === kind),
   ),
   "the header, model change and thinking-level change become cards",
   JSON.stringify(
