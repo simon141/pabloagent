@@ -892,6 +892,10 @@ function sessionLabel(s: SessionSummary, max = 42): string {
   );
 }
 
+function sessionTitle(s: SessionSummary, max = 42): string {
+  return truncateLabel(s.title || s.preview, max) ?? "(no prompt yet)";
+}
+
 function truncateLabel(text: string | null, max = 42): string | null {
   const raw = (text ?? "").replace(/\s+/g, " ").trim();
   if (!raw) return null;
@@ -1058,6 +1062,8 @@ function sessionSubtitle(
   shown: string,
 ): string {
   if (mark.state === "running") return "Working…";
+  const label = s.label?.trim() ?? "";
+  if (label) return label;
   const preview = s.preview?.trim() ?? "";
   // Compared against what the title line actually says, not against
   // `s.title`: a session with no AI title shows its prompt up there.
@@ -1205,9 +1211,7 @@ function renderSessionList(): void {
     top.className = "session-row-top";
     const title = document.createElement("span");
     title.className = "session-row-title";
-    // The user's own label overrides the AI title, which overrides the
-    // opening prompt.
-    title.textContent = s.label || s.title || s.preview || "(no prompt yet)";
+    title.textContent = s.title || s.preview || "(no prompt yet)";
     top.appendChild(title);
     if (s.closedAt !== null) {
       const closed = document.createElement("span");
@@ -1495,14 +1499,12 @@ function renderChatSessionPill(): void {
   button.classList.toggle("closed", closed);
   $("chat-status").classList.toggle("closed", closed);
 
-  // A label set from this app overrides the title wherever a session is named.
   // `chat.title` covers the gap where a brand-new session gains a harness title
   // mid-first-turn, before the picker has a row to carry it.
   title.textContent =
-    truncateLabel(chat.label) ||
     chat.title ||
     (current
-      ? sessionLabel(current)
+      ? sessionTitle(current)
       : chat.rolloutPath || chat.turnActive
         ? "New chat"
         : "No session");
@@ -1514,7 +1516,8 @@ function renderChatSessionPill(): void {
     "aria-label",
     labelable ? "Label session" : "Session title",
   );
-  sub.textContent = labelable ? "Tap to label" : "";
+  sub.textContent =
+    truncateLabel(chat.label) ?? (labelable ? "Tap to label" : "");
   delete sub.dataset.relAt;
 }
 
