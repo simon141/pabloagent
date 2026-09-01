@@ -25,6 +25,7 @@ const DEFAULT_HIDDEN: Partial<Record<Harness, readonly string[]>> = {
     "reasoning",
     "context",
     "type:ai-title",
+    "type:atis-latch",
     "type:attachment:command_permissions",
     "type:attachment:edited_text_file",
     "type:mode",
