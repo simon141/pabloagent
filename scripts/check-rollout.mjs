@@ -865,7 +865,7 @@ const cached = costOf(
   "claude-sonnet-5",
 );
 check(
-  Math.abs(cached.dollars - (0.1 + 0.6 * 1.25 + 0.4 * 2) * 3) < 1e-9 &&
+  Math.abs(cached.dollars - (0.1 + 0.6 * 1.25 + 0.4 * 2) * 2) < 1e-9 &&
     cached.estimated === true,
   "cache reads cost a tenth of input, and writes 1.25× or 2× by TTL, all flagged as estimated",
   JSON.stringify(cached),
@@ -878,12 +878,14 @@ check(
 );
 check(
   costOf({ ...emptyBreakdown(), input: 1_000_000 }, "gpt-5.6-sol").dollars ===
-    5 &&
+    4 &&
+    costOf({ ...emptyBreakdown(), output: 1_000_000 }, "gpt-5.6").dollars ===
+      20 &&
     costOf({ ...emptyBreakdown(), output: 1_000_000 }, "gpt-5.6-terra")
       .dollars === 12 &&
     costOf({ ...emptyBreakdown(), input: 1_000_000 }, "gpt-5.4-mini")
       .dollars === 0.75,
-  "each codex model gets its own rate, -mini matched before its parent",
+  "each codex model gets its own rate, including the Sol alias, with -mini matched before its parent",
 );
 // Stricter than the window table: an unrecognised `claude-…` or `gpt-…` could
 // be any tier, and a wrong price looks exactly as authoritative as a right one.
