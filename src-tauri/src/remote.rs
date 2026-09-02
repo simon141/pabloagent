@@ -307,6 +307,62 @@ pub struct PiModel {
     pub thinking: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeModel {
+    pub id: String,
+    pub label: String,
+    pub efforts: Vec<String>,
+}
+
+pub fn list_claude_models_command(claude_bin: &str) -> String {
+    let request = r#"{"request_id":"pablo-models","type":"control_request","request":{"subtype":"initialize"}}"#;
+    format!(
+        "printf '%s\\n' {} | CLAUDE_CODE_ENTRYPOINT=sdk-ts bash -lc \
+         'exec \"$0\" --output-format stream-json --verbose --input-format stream-json \
+         --no-session-persistence' {}",
+        quote(request),
+        quote(claude_bin)
+    )
+}
+
+pub fn parse_claude_models(output: &str) -> Vec<ClaudeModel> {
+    for line in output.lines() {
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let Some(models) = value
+            .pointer("/response/response/models")
+            .and_then(|models| models.as_array())
+        else {
+            continue;
+        };
+        return models
+            .iter()
+            .filter_map(|model| {
+                let id = model.get("value")?.as_str()?.to_string();
+                let display = model.get("displayName")?.as_str()?;
+                let label = model
+                    .get("description")
+                    .and_then(|description| description.as_str())
+                    .and_then(|description| description.split(" · ").next())
+                    .filter(|description| !description.is_empty())
+                    .unwrap_or(display)
+                    .to_string();
+                let efforts = model
+                    .get("supportedEffortLevels")
+                    .and_then(|levels| levels.as_array())
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|level| level.as_str().map(str::to_string))
+                    .collect();
+                Some(ClaudeModel { id, label, efforts })
+            })
+            .collect();
+    }
+    Vec::new()
+}
+
 pub fn list_pi_models_command(pi_bin: &str) -> String {
     format!(
         "NO_COLOR=1 bash -lc 'p=$(command -v \"$0\" 2>/dev/null || echo \"$0\"); \
@@ -2966,6 +3022,34 @@ mod tests {
                 PiModel {
                     id: "openai-codex/gpt-5.6-terra".into(),
                     thinking: false,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn the_claude_model_command_uses_the_sdk_catalog() {
+        let cmd = list_claude_models_command("/opt/claude code");
+        assert!(cmd.contains("'/opt/claude code'"), "{cmd}");
+        assert!(cmd.contains("--input-format stream-json"), "{cmd}");
+        assert!(cmd.contains("--no-session-persistence"), "{cmd}");
+        assert!(cmd.contains(r#""subtype":"initialize""#), "{cmd}");
+
+        let models = parse_claude_models(
+            r#"{"type":"control_response","response":{"subtype":"success","response":{"models":[{"value":"default","displayName":"Default (recommended)","description":"Opus 5 with 1M context · Best for everyday tasks","supportedEffortLevels":["low","high"]},{"value":"haiku","displayName":"Haiku","description":"Haiku 4.5 · Fastest for quick answers"}]}}}"#,
+        );
+        assert_eq!(
+            models,
+            vec![
+                ClaudeModel {
+                    id: "default".into(),
+                    label: "Opus 5 with 1M context".into(),
+                    efforts: vec!["low".into(), "high".into()],
+                },
+                ClaudeModel {
+                    id: "haiku".into(),
+                    label: "Haiku 4.5".into(),
+                    efforts: Vec::new(),
                 },
             ]
         );

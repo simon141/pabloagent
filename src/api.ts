@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Harness } from "./harness";
 import type {
   ChatFontSize,
+  ClaudeModel,
   ConnectionInfo,
   ConnectOutcome,
   DownloadedFile,
@@ -72,6 +73,9 @@ export const connectionInfo = () =>
   invoke<ConnectionInfo | null>("connection_info");
 
 export const hostStats = () => invoke<HostStats>("host_stats");
+
+export const listClaudeModels = () =>
+  invoke<ClaudeModel[]>("list_claude_models");
 
 export const listPiModels = () => invoke<PiModel[]>("list_pi_models");
 

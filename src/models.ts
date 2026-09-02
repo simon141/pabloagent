@@ -1,5 +1,5 @@
 import { DEFAULT_HARNESS, type Harness } from "./harness";
-import type { PiModel } from "./types";
+import type { ClaudeModel, PiModel } from "./types";
 
 export interface ModelChoice {
   id: string;
@@ -9,8 +9,6 @@ export interface ModelChoice {
 }
 
 const CONFIG_EFFORTS = ["low", "medium", "high", "xhigh"];
-
-const CLAUDE_EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 
 const CODEX_MODELS: ModelChoice[] = [
   {
@@ -55,31 +53,6 @@ const CODEX_MODELS: ModelChoice[] = [
     efforts: ["low", "medium", "high", "xhigh"],
     defaultEffort: "medium",
   },
-];
-
-const CLAUDE_MODELS: ModelChoice[] = [
-  {
-    id: "",
-    label: "Server default (settings.json)",
-    efforts: CLAUDE_EFFORTS,
-    defaultEffort: "",
-  },
-  { id: "fable", label: "Fable", efforts: CLAUDE_EFFORTS, defaultEffort: "" },
-  { id: "opus", label: "Opus", efforts: CLAUDE_EFFORTS, defaultEffort: "" },
-  {
-    id: "opus[1m]",
-    label: "Opus (1M context)",
-    efforts: CLAUDE_EFFORTS,
-    defaultEffort: "",
-  },
-  { id: "sonnet", label: "Sonnet", efforts: CLAUDE_EFFORTS, defaultEffort: "" },
-  {
-    id: "sonnet[1m]",
-    label: "Sonnet (1M context)",
-    efforts: CLAUDE_EFFORTS,
-    defaultEffort: "",
-  },
-  { id: "haiku", label: "Haiku", efforts: CLAUDE_EFFORTS, defaultEffort: "" },
 ];
 
 const OPENCODE_EFFORTS = ["minimal", "low", "medium", "high", "max"];
@@ -134,6 +107,16 @@ const PI_MODELS: ModelChoice[] = [
   },
 ];
 
+export function claudeModelChoices(models: ClaudeModel[]): ModelChoice[] {
+  return models.map((model) => ({
+    id: model.id === "default" ? "" : model.id,
+    label:
+      model.id === "default" ? "Server default (settings.json)" : model.label,
+    efforts: model.efforts,
+    defaultEffort: "",
+  }));
+}
+
 export function piModelChoices(models: PiModel[]): ModelChoice[] {
   return [
     ...PI_MODELS,
@@ -146,26 +129,26 @@ export function piModelChoices(models: PiModel[]): ModelChoice[] {
   ];
 }
 
-const MODELS_BY_HARNESS: Record<Harness, ModelChoice[]> = {
+const MODELS_BY_HARNESS: Partial<Record<Harness, ModelChoice[]>> = {
   codex: CODEX_MODELS,
-  claude: CLAUDE_MODELS,
   opencode: OPENCODE_MODELS,
   pi: PI_MODELS,
 };
 
 export function modelsFor(
   harness: Harness | null | undefined,
-  piModels?: ModelChoice[] | null,
+  dynamicModels?: ModelChoice[] | null,
 ): ModelChoice[] {
-  if (harness === "pi" && piModels) return piModels;
+  if (harness === "claude") return dynamicModels ?? [];
+  if (harness === "pi" && dynamicModels) return dynamicModels;
   return MODELS_BY_HARNESS[harness ?? DEFAULT_HARNESS] ?? CODEX_MODELS;
 }
 
 export function modelById(
   harness: Harness | null | undefined,
   id: string | null | undefined,
-  piModels?: ModelChoice[] | null,
-): ModelChoice {
-  const models = modelsFor(harness, piModels);
+  dynamicModels?: ModelChoice[] | null,
+): ModelChoice | undefined {
+  const models = modelsFor(harness, dynamicModels);
   return models.find((m) => m.id === (id ?? "")) ?? models[0];
 }

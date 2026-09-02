@@ -45,6 +45,7 @@ import {
   isHarness,
 } from "./harness";
 import {
+  claudeModelChoices,
   type ModelChoice,
   modelById,
   modelsFor,
@@ -690,7 +691,7 @@ async function doConnect(next: SshSettings): Promise<void> {
     }
     settings = next;
     capabilities = outcome.capabilities;
-    resetPiModelCatalog();
+    resetModelCatalogs();
     await api.saveSettings(next);
     // A host whose CLI has never run has no sessions directory at all, which
     // would otherwise look like an empty list for no stated reason.
@@ -3107,19 +3108,39 @@ function selectedHarness(): Harness {
 
 let agentDefaults: Partial<Record<Harness, NewChatDefaults>> = {};
 let clearForwardOnNewChatCancel = false;
-let piModels: ModelChoice[] | null = null;
-let piModelsState: "idle" | "loading" | "ready" | "failed" = "idle";
-let piModelsGeneration = 0;
+type CatalogHarness = "claude" | "pi";
+type CatalogState = "idle" | "loading" | "ready" | "failed";
+const modelCatalogs: Partial<Record<CatalogHarness, ModelChoice[]>> = {};
+const modelCatalogStates: Record<CatalogHarness, CatalogState> = {
+  claude: "idle",
+  pi: "idle",
+};
+let modelCatalogGeneration = 0;
 
-function resetPiModelCatalog(): void {
-  piModelsGeneration += 1;
-  piModels = null;
-  piModelsState = "idle";
+function resetModelCatalogs(): void {
+  modelCatalogGeneration += 1;
+  delete modelCatalogs.claude;
+  delete modelCatalogs.pi;
+  modelCatalogStates.claude = "idle";
+  modelCatalogStates.pi = "idle";
 }
 
-const choicesFor = (harness: Harness) => modelsFor(harness, piModels);
+const hasModelCatalog = (harness: Harness): harness is CatalogHarness =>
+  harness === "claude" || harness === "pi";
+const modelsLoading = (harness: Harness) =>
+  hasModelCatalog(harness) && modelCatalogStates[harness] === "loading";
+const modelsFailed = (harness: Harness) =>
+  hasModelCatalog(harness) && modelCatalogStates[harness] === "failed";
+const modelsUnavailable = (harness: Harness) =>
+  modelsLoading(harness) || modelsFailed(harness);
+const choicesFor = (harness: Harness) =>
+  modelsFor(harness, hasModelCatalog(harness) ? modelCatalogs[harness] : null);
 const choiceById = (harness: Harness, id?: string | null) =>
-  modelById(harness, id, piModels);
+  modelById(
+    harness,
+    id,
+    hasModelCatalog(harness) ? modelCatalogs[harness] : null,
+  );
 
 function renderModelOptions(harness: Harness, selected?: string): void {
   const select = $<HTMLSelectElement>("nc-model");
@@ -3130,9 +3151,7 @@ function renderModelOptions(harness: Harness, selected?: string): void {
     opt.textContent = m.label;
     select.appendChild(opt);
   }
-  // A model remembered for another harness resolves to this one's default
-  // rather than to nothing, so switching harness cannot leave the dialog blank.
-  select.value = choiceById(harness, selected).id;
+  select.value = choiceById(harness, selected)?.id ?? "";
 }
 
 function renderEffortOptions(
@@ -3143,6 +3162,7 @@ function renderEffortOptions(
   const select = $<HTMLSelectElement>("nc-effort");
   const model = choiceById(harness, modelId);
   select.innerHTML = "";
+  if (!model) return;
 
   // The server's own effort is a valid choice, and the only one that stays right
   // when this build's model list is older than the CLI on the server.
@@ -3181,15 +3201,28 @@ function renderHarnessOptions(
   harness: Harness,
   defaults?: { model?: string; effort?: string; permissionMode?: string },
 ): void {
-  const loading = harness === "pi" && piModelsState === "loading";
-  show($("nc-model-loading"), loading);
-  $<HTMLButtonElement>("nc-create").disabled = loading;
-  $<HTMLButtonElement>("nc-favorite").disabled = loading;
+  const loading = modelsLoading(harness);
+  const failed = modelsFailed(harness);
+  const spinner = $("nc-model-loading");
+  spinner.setAttribute(
+    "aria-label",
+    `Loading ${harnessById(harness).label} models`,
+  );
+  show(spinner, loading);
+  $<HTMLButtonElement>("nc-create").disabled = loading || failed;
+  $<HTMLButtonElement>("nc-favorite").disabled = loading || failed;
   if (loading) {
     const model = $<HTMLSelectElement>("nc-model");
     const effort = $<HTMLSelectElement>("nc-effort");
-    model.innerHTML = '<option value="">Loading Pi models…</option>';
+    model.innerHTML = `<option value="">Loading ${harnessById(harness).label} models…</option>`;
     effort.innerHTML = '<option value="">Waiting for model list…</option>';
+    model.disabled = true;
+    effort.disabled = true;
+  } else if (failed) {
+    const model = $<HTMLSelectElement>("nc-model");
+    const effort = $<HTMLSelectElement>("nc-effort");
+    model.innerHTML = "";
+    effort.innerHTML = "";
     model.disabled = true;
     effort.disabled = true;
   } else {
@@ -3215,34 +3248,42 @@ function activateHarnessOptions(
 ): void {
   let load = false;
   if (
-    harness === "pi" &&
-    (piModelsState === "idle" || piModelsState === "failed")
+    hasModelCatalog(harness) &&
+    (modelCatalogStates[harness] === "idle" ||
+      modelCatalogStates[harness] === "failed")
   ) {
-    piModelsState = "loading";
+    modelCatalogStates[harness] = "loading";
     hideError("newchat-error");
     load = true;
   }
   renderHarnessOptions(harness, defaults);
-  if (load) void loadPiModels();
+  if (load && hasModelCatalog(harness)) void loadModels(harness);
 }
 
-async function loadPiModels(): Promise<void> {
-  const generation = piModelsGeneration;
+async function loadModels(harness: CatalogHarness): Promise<void> {
+  const generation = modelCatalogGeneration;
   try {
-    const loaded = piModelChoices(await api.listPiModels());
-    if (generation !== piModelsGeneration) return;
-    piModels = loaded;
-    piModelsState = "ready";
+    const loaded =
+      harness === "claude"
+        ? claudeModelChoices(await api.listClaudeModels())
+        : piModelChoices(await api.listPiModels());
+    if (generation !== modelCatalogGeneration) return;
+    modelCatalogs[harness] = loaded;
+    modelCatalogStates[harness] = "ready";
   } catch (err) {
-    if (generation !== piModelsGeneration) return;
-    piModels = null;
-    piModelsState = "failed";
-    if (!$("modal-newchat").hidden && selectedHarness() === "pi") {
-      showError("newchat-error", "Could not load Pi models", err);
+    if (generation !== modelCatalogGeneration) return;
+    delete modelCatalogs[harness];
+    modelCatalogStates[harness] = "failed";
+    if (!$("modal-newchat").hidden && selectedHarness() === harness) {
+      showError(
+        "newchat-error",
+        `Could not load ${harnessById(harness).label} models`,
+        err,
+      );
     }
   }
-  if (!$("modal-newchat").hidden && selectedHarness() === "pi") {
-    renderHarnessOptions("pi", agentDefaults.pi);
+  if (!$("modal-newchat").hidden && selectedHarness() === harness) {
+    renderHarnessOptions(harness, agentDefaults[harness]);
   }
 }
 
@@ -3325,7 +3366,7 @@ function closeNewChatModal(): void {
 async function createNewChat(): Promise<void> {
   hideError("newchat-error");
   const harness = selectedHarness();
-  if (harness === "pi" && piModelsState === "loading") return;
+  if (modelsUnavailable(harness)) return;
   const model = $<HTMLSelectElement>("nc-model").value;
   const effort = $<HTMLSelectElement>("nc-effort").value;
   const permissionMode = harnessById(harness).permissionModes.length
@@ -3390,7 +3431,7 @@ function enterNewChat(
 // list, say) keeps its id rather than borrowing the fallback entry's label.
 function modelLabelFor(harness: Harness, model: string): string {
   const choice = choiceById(harness, model);
-  return choice.id === model ? choice.label : model;
+  return choice?.id === model ? choice.label : model;
 }
 
 function setFavorites(list: NewChatDefaults[]): void {
@@ -3451,9 +3492,9 @@ function dialogFavorite(): NewChatDefaults {
 
 // The star fills when the dialog's exact configuration is already saved.
 function renderFavoriteToggle(): void {
-  const loading = selectedHarness() === "pi" && piModelsState === "loading";
+  const unavailable = modelsUnavailable(selectedHarness());
   const saved =
-    !loading && favorites.some((f) => sameFavorite(f, dialogFavorite()));
+    !unavailable && favorites.some((f) => sameFavorite(f, dialogFavorite()));
   const button = $<HTMLButtonElement>("nc-favorite");
   button.classList.toggle("favorited", saved);
   button.setAttribute("aria-pressed", String(saved));
@@ -3462,7 +3503,7 @@ function renderFavoriteToggle(): void {
 
 async function toggleFavoriteFromDialog(): Promise<void> {
   hideError("newchat-error");
-  if (selectedHarness() === "pi" && piModelsState === "loading") return;
+  if (modelsUnavailable(selectedHarness())) return;
   const favorite = dialogFavorite();
   if (!favorite.cwd) {
     showError(
@@ -4634,7 +4675,7 @@ async function handleDrawerAction(action: string): Promise<void> {
       if (!ok) return;
       await api.clearSettings();
       settings = null;
-      resetPiModelCatalog();
+      resetModelCatalogs();
       // The 1.5s poll has been running behind this dialog; a reply still in
       // flight would helpfully fill the emptied list back in.
       sessionsGeneration += 1;

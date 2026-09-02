@@ -114,6 +114,12 @@ export interface PiModel {
   thinking: boolean;
 }
 
+export interface ClaudeModel {
+  id: string;
+  label: string;
+  efforts: string[];
+}
+
 export type TurnState = "unknown" | "running" | "succeeded" | "failed";
 
 export interface SessionSummary {

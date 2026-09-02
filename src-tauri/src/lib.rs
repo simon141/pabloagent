@@ -421,6 +421,25 @@ async fn list_pi_models(state: State<'_, AppState>) -> Result<Vec<remote::PiMode
 }
 
 #[tauri::command]
+async fn list_claude_models(
+    state: State<'_, AppState>,
+) -> Result<Vec<remote::ClaudeModel>, String> {
+    let mut guard = state.connected("listing Claude models").await?;
+    let connection = guard.as_mut().expect("checked");
+    let command = remote::list_claude_models_command(&connection.settings().claude_bin);
+    let output = connection.run_ok("list Claude models", &command).await?;
+    let models = remote::parse_claude_models(&output);
+    if models.is_empty() {
+        return Err("Claude returned no readable models from its SDK catalog.".to_string());
+    }
+    state.diagnostics.push(
+        "remote",
+        format!("Claude model list: {} rows", models.len()),
+    );
+    Ok(models)
+}
+
+#[tauri::command]
 async fn list_sessions(state: State<'_, AppState>) -> Result<Vec<SessionSummary>, String> {
     let mut guard = state.connected("the session list").await?;
     let connection = guard.as_mut().expect("checked");
@@ -960,6 +979,7 @@ pub fn run() {
             is_connected,
             connection_info,
             host_stats,
+            list_claude_models,
             list_pi_models,
             list_sessions,
             read_rollout,
