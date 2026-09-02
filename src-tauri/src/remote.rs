@@ -1,5 +1,8 @@
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
+use sha2::Digest as _;
+
+use crate::store::NewChatDefaults;
 
 pub const SCRIPT: &str = include_str!("turn.sh");
 
@@ -496,15 +499,21 @@ const OPENCODE_CACHE_DIR: &str = "${XDG_CACHE_HOME:-$HOME/.cache}/pabloagent/ope
 // writes beside it.
 const PI_NAME_TAIL_BYTES: usize = 64 * 1024;
 
-pub fn list_sessions_command(opencode_bin: &str) -> String {
+pub fn list_sessions_command(opencode_bin: &str, with_favorites: bool) -> String {
     let turns = turn_records_command();
     let opencode = quote(opencode_bin);
     let sql = quote(&opencode_list_sql());
     let meta = session_meta_records_command();
+    let favorites = if with_favorites {
+        favorites_records_command()
+    } else {
+        String::new()
+    };
     format!(
         "tab=$(printf '\\t')\n\
          {turns}\
          {meta}\
+         {favorites}\
          {{\n\
          d=\"${{CODEX_HOME:-$HOME/.codex}}/sessions\"\n\
          [ -d \"$d\" ] && find \"$d\" -type f -name 'rollout-*.jsonl' \
@@ -708,6 +717,106 @@ pub fn set_pi_session_name_command(
         ));
     }
     Ok(cmd)
+}
+
+const FAVORITES_DIR: &str = "${XDG_DATA_HOME:-$HOME/.local/share}/pabloagent/favorites";
+
+const FAVORITES_LIMIT: usize = 200;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionList {
+    pub sessions: Vec<SessionSummary>,
+    pub favorites: Option<Vec<NewChatDefaults>>,
+}
+
+// Hashed in Rust rather than by the shell: every Pablo build must name the
+// same favorite the same way, and a name from a path could exceed the
+// filename limit.
+pub fn favorite_name(favorite: &NewChatDefaults) -> String {
+    let mut hasher = sha2::Sha256::new();
+    for field in [
+        &favorite.harness,
+        &favorite.model,
+        &favorite.effort,
+        &favorite.cwd,
+        &favorite.permission_mode,
+    ] {
+        hasher.update(field.as_bytes());
+        hasher.update([0]);
+    }
+    format!("{:x}", hasher.finalize())
+}
+
+fn favorite_record(favorite: &NewChatDefaults) -> Result<(String, String), String> {
+    if Harness::from_tag(&favorite.harness).tag() != favorite.harness.trim() {
+        return Err(format!(
+            "'{}' is not an agent this app knows",
+            favorite.harness
+        ));
+    }
+    if !favorite.cwd.starts_with('/') {
+        return Err("a favorite needs an absolute workspace path".to_string());
+    }
+    let json = serde_json::to_string(favorite)
+        .map_err(|e| format!("cannot serialize the favorite: {e}"))?;
+    Ok((favorite_name(favorite), json))
+}
+
+// An `if`, not `&&`: this ends the save and delete commands, and a host with
+// no favorites yet must not read as a failed write.
+fn favorites_records_command() -> String {
+    format!(
+        "fd=\"{FAVORITES_DIR}\"\n\
+         if [ -d \"$fd\" ]; then\n\
+           find \"$fd\" -mindepth 1 -maxdepth 1 -type f -name '*.json' \
+           -printf '%f\\n' 2>/dev/null | sort | head -n {FAVORITES_LIMIT} \
+           | while read -r name; do\n\
+             v=$(base64 <\"$fd/$name\" 2>/dev/null | tr -d '\\n')\n\
+             [ -n \"$v\" ] && printf 'PT_F\\t%s\\n' \"$v\"\n\
+           done\n\
+         fi\n"
+    )
+}
+
+pub fn save_favorite_command(favorite: &NewChatDefaults) -> Result<String, String> {
+    let (name, json) = favorite_record(favorite)?;
+    let write = write_file(&format!("\"{FAVORITES_DIR}/{name}.json\""), &json);
+    Ok(format!(
+        "mkdir -p -- \"{FAVORITES_DIR}\" || exit 1\n\
+         {} || exit 1\n\
+         {}",
+        write.trim_end(),
+        favorites_records_command()
+    ))
+}
+
+pub fn delete_favorite_command(favorite: &NewChatDefaults) -> Result<String, String> {
+    let (name, _) = favorite_record(favorite)?;
+    Ok(format!(
+        "rm -f -- \"{FAVORITES_DIR}/{name}.json\" || exit 1\n\
+         {}",
+        favorites_records_command()
+    ))
+}
+
+pub fn parse_favorites(output: &str) -> Vec<NewChatDefaults> {
+    let mut out: Vec<NewChatDefaults> = Vec::new();
+    for line in output.lines() {
+        let Some(b64) = line.strip_prefix("PT_F\t") else {
+            continue;
+        };
+        let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64.trim()) else {
+            continue;
+        };
+        let Ok(favorite) = serde_json::from_slice::<NewChatDefaults>(&bytes) else {
+            continue;
+        };
+        if favorite_record(&favorite).is_ok() && !out.contains(&favorite) {
+            out.push(favorite);
+        }
+    }
+    out
 }
 
 const DRAFT_PROMPTS_DIR: &str = "${XDG_DATA_HOME:-$HOME/.local/share}/pabloagent/draft";
@@ -2127,7 +2236,7 @@ mod tests {
         assert_eq!(sessions[0].preview, "add claude support");
         assert_eq!(sessions[1].title, None);
 
-        let cmd = list_sessions_command("opencode");
+        let cmd = list_sessions_command("opencode", false);
         assert!(cmd.contains(r#""ai-title""#), "{cmd}");
         // The title probe must stay a bounded read, never a whole-file grep.
         assert!(
@@ -2165,10 +2274,101 @@ mod tests {
         assert_eq!(sessions[1].label, None);
 
         // The listing itself must ask the server for the records, label included.
-        let cmd = list_sessions_command("opencode");
+        let cmd = list_sessions_command("opencode", false);
         assert!(cmd.contains("pabloagent/session-meta"), "{cmd}");
         assert!(cmd.contains("PT_C"), "{cmd}");
         assert!(cmd.contains("for k in closed read label"), "{cmd}");
+    }
+
+    fn favorite(cwd: &str) -> NewChatDefaults {
+        NewChatDefaults {
+            harness: "codex".into(),
+            model: "gpt-5.5".into(),
+            effort: "high".into(),
+            cwd: cwd.into(),
+            permission_mode: String::new(),
+        }
+    }
+
+    fn favorite_line(favorite: &NewChatDefaults) -> String {
+        let json = serde_json::to_string(favorite).unwrap();
+        format!(
+            "PT_F\t{}\n",
+            base64::engine::general_purpose::STANDARD.encode(json)
+        )
+    }
+
+    #[test]
+    fn favorites_ride_along_only_on_a_full_listing() {
+        let full = list_sessions_command("opencode", true);
+        assert!(full.contains("pabloagent/favorites"), "{full}");
+        assert!(full.contains("PT_F"), "{full}");
+        let poll = list_sessions_command("opencode", false);
+        assert!(!poll.contains("pabloagent/favorites"), "{poll}");
+        assert!(!poll.contains("PT_F"), "{poll}");
+    }
+
+    #[test]
+    fn a_favorite_is_named_by_every_field_and_nothing_else() {
+        let name = favorite_name(&favorite("/home/user/project"));
+        assert_eq!(name.len(), 64);
+        assert!(name.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_eq!(name, favorite_name(&favorite("/home/user/project")));
+        assert_ne!(name, favorite_name(&favorite("/home/user/other")));
+        let mut effort = favorite("/home/user/project");
+        effort.effort = "low".into();
+        assert_ne!(name, favorite_name(&effort));
+    }
+
+    #[test]
+    fn favorite_commands_touch_the_named_record_and_relist() {
+        let f = favorite("/home/user/it's here");
+        let name = favorite_name(&f);
+        let save = save_favorite_command(&f).unwrap();
+        assert!(
+            save.contains(
+                "mkdir -p -- \"${XDG_DATA_HOME:-$HOME/.local/share}/pabloagent/favorites\""
+            ),
+            "{save}"
+        );
+        assert!(
+            save.contains(&format!("/pabloagent/favorites/{name}.json\"")),
+            "{save}"
+        );
+        assert!(save.contains("| base64 -d >"), "{save}");
+        assert!(!save.contains("it's"), "the record travels encoded: {save}");
+        assert!(save.contains("PT_F"), "{save}");
+
+        let delete = delete_favorite_command(&f).unwrap();
+        assert!(delete.contains(&format!("rm -f -- \"${{XDG_DATA_HOME:-$HOME/.local/share}}/pabloagent/favorites/{name}.json\"")), "{delete}");
+        assert!(delete.contains("PT_F"), "{delete}");
+
+        let mut unknown = favorite("/home/user/project");
+        unknown.harness = "cursor".into();
+        assert!(save_favorite_command(&unknown).is_err());
+        assert!(save_favorite_command(&favorite("project")).is_err());
+    }
+
+    #[test]
+    fn favorite_records_are_decoded_deduplicated_and_bad_ones_skipped() {
+        let mut claude = favorite("/w");
+        claude.harness = "claude".into();
+        claude.permission_mode = "plan".into();
+        let mut unknown = favorite("/w");
+        unknown.harness = "cursor".into();
+        let output = format!(
+            "{}{}{}PT_F\tnot base64!\nPT_F\t{}\n{}PT_S\tcodex\t1785300100\t/h/.codex/sessions/rollout-x.jsonl\n",
+            favorite_line(&favorite("/home/user/project")),
+            favorite_line(&claude),
+            favorite_line(&favorite("/home/user/project")),
+            base64::engine::general_purpose::STANDARD.encode("{\"harness\":"),
+            favorite_line(&unknown),
+        );
+        let favorites = parse_favorites(&output);
+        assert_eq!(favorites, vec![favorite("/home/user/project"), claude]);
+        // The same output is what the picker reads its sessions from.
+        assert!(parse_sessions(&output).is_empty());
+        assert!(parse_favorites("PT_S\tcodex\t1\t/x.jsonl\n").is_empty());
     }
 
     #[test]
@@ -2329,7 +2529,7 @@ mod tests {
             "spaced out"
         );
 
-        let cmd = list_sessions_command("opencode");
+        let cmd = list_sessions_command("opencode", false);
         assert!(cmd.contains("PT_PN"), "{cmd}");
         // The name probe must stay a bounded read, never a whole-file grep, and
         // must match the entry only where pi writes it: at the head of a line.
@@ -2614,7 +2814,7 @@ mod tests {
 
     #[test]
     fn the_list_command_reads_the_turn_records() {
-        let cmd = list_sessions_command("opencode");
+        let cmd = list_sessions_command("opencode", false);
         assert!(cmd.contains("pabloagent/turns"), "{cmd}");
         assert!(cmd.contains("XDG_CACHE_HOME"), "{cmd}");
         assert!(
@@ -2957,7 +3157,7 @@ mod tests {
 
     #[test]
     fn the_list_command_queries_the_opencode_db() {
-        let cmd = list_sessions_command("/opt/open code");
+        let cmd = list_sessions_command("/opt/open code", false);
         assert!(cmd.contains("'/opt/open code'"), "{cmd}");
         assert!(cmd.contains("opencode.db"), "{cmd}");
         assert!(cmd.contains("--format tsv"), "{cmd}");
@@ -3057,7 +3257,7 @@ mod tests {
 
     #[test]
     fn the_list_command_walks_the_pi_session_tree() {
-        let cmd = list_sessions_command("opencode");
+        let cmd = list_sessions_command("opencode", false);
         assert!(cmd.contains("PI_CODING_AGENT_DIR"), "{cmd}");
         assert!(cmd.contains(".pi/agent"), "{cmd}");
         assert!(

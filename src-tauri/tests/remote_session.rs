@@ -17,13 +17,14 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 
 use pabloagent_lib::testing::{
-    connect_full, delete_session_command, download_remote_file_command, list_sessions_command,
-    mark_session_read_command, parse_pretty_session, parse_sessions, parse_turn_poll,
-    poll_turn_command, pretty_session_command, read_rollout_command, refused_because_busy,
-    rewind_session_command, set_pi_session_name_command, set_session_closed_command,
+    connect_full, delete_favorite_command, delete_session_command, download_remote_file_command,
+    favorite_name, list_sessions_command, mark_session_read_command, parse_favorites,
+    parse_pretty_session, parse_sessions, parse_turn_poll, poll_turn_command,
+    pretty_session_command, read_rollout_command, refused_because_busy, rewind_session_command,
+    save_favorite_command, set_pi_session_name_command, set_session_closed_command,
     start_turn_command, stop_turn_command, ConnectOutcome, Connection, Diagnostics, Download,
-    Harness, Header, KnownHost, Progress, SessionSummary, SshSettings, TurnPoll, TurnRequest,
-    TurnState,
+    Harness, Header, KnownHost, NewChatDefaults, Progress, SessionSummary, SshSettings, TurnPoll,
+    TurnRequest, TurnState,
 };
 use russh::keys::ssh_key::{HashAlg, PrivateKey};
 use russh::server::{Auth, ChannelOpenHandle, Handler, Msg, Server, Session};
@@ -1009,7 +1010,10 @@ impl Remote {
     async fn sessions_result(&mut self) -> Result<Vec<SessionSummary>, String> {
         let opencode_bin = self.connection.settings().opencode_bin.clone();
         self.connection
-            .run_ok("list sessions", &list_sessions_command(&opencode_bin))
+            .run_ok(
+                "list sessions",
+                &list_sessions_command(&opencode_bin, false),
+            )
             .await
             .map(|out| parse_sessions(&out))
     }
@@ -2086,6 +2090,89 @@ async fn a_delete_the_server_could_not_make_is_reported_as_a_failure() {
         err.contains("Permission denied") || err.contains("still has"),
         "the reason the server gave must reach the reader: {err}"
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn favorites_are_host_records_shared_through_the_full_listing() {
+    let Some(mut remote) = Remote::start("favorites").await else {
+        return;
+    };
+    let favorite = |harness: &str, cwd: &str| NewChatDefaults {
+        harness: harness.to_string(),
+        model: "gpt-5.5".to_string(),
+        effort: "high".to_string(),
+        cwd: cwd.to_string(),
+        permission_mode: String::new(),
+    };
+    let codex = favorite("codex", &remote.temp.display().to_string());
+    let claude = favorite("claude", "/home/user/it's a project");
+    let opencode_bin = remote.connection.settings().opencode_bin.clone();
+
+    let mut saves = Vec::new();
+    for f in [&codex, &claude, &codex] {
+        let cmd = save_favorite_command(f).expect("a favorite builds a save command");
+        match remote.connection.run_ok("save favorite", &cmd).await {
+            Ok(out) => saves.push(parse_favorites(&out)),
+            Err(e) => {
+                remote.cleanup();
+                panic!("saving a favorite must run cleanly on the server: {e}");
+            }
+        }
+    }
+    // The server env pins XDG_DATA_HOME to <temp>/.local/share — see
+    // Remote::start.
+    let dir = remote.temp.join(".local/share/pabloagent/favorites");
+    let record = std::fs::read_to_string(dir.join(format!("{}.json", favorite_name(&claude))))
+        .unwrap_or_default();
+    let files = std::fs::read_dir(&dir)
+        .map(|d| d.count())
+        .unwrap_or_default();
+
+    let full = remote
+        .connection
+        .run_ok("list sessions", &list_sessions_command(&opencode_bin, true))
+        .await
+        .unwrap_or_default();
+    let poll = remote
+        .connection
+        .run_ok(
+            "list sessions",
+            &list_sessions_command(&opencode_bin, false),
+        )
+        .await
+        .unwrap_or_default();
+
+    let delete = delete_favorite_command(&codex).expect("a favorite builds a delete command");
+    let after_delete = match remote.connection.run_ok("delete favorite", &delete).await {
+        Ok(out) => parse_favorites(&out),
+        Err(e) => {
+            remote.cleanup();
+            panic!("deleting a favorite must run cleanly on the server: {e}");
+        }
+    };
+    let deleted_gone = !dir.join(format!("{}.json", favorite_name(&codex))).exists();
+    remote.cleanup();
+
+    assert_eq!(saves[0], vec![codex.clone()]);
+    assert_eq!(saves[1].len(), 2, "each save returns the host's list");
+    assert_eq!(saves[2].len(), 2, "a repeated save is not a second record");
+    assert_eq!(files, 2, "one file per favorite");
+    assert_eq!(
+        serde_json::from_str::<NewChatDefaults>(&record).ok(),
+        Some(claude.clone()),
+        "the record is the favorite as JSON"
+    );
+    let listed = parse_favorites(&full);
+    assert!(
+        listed.contains(&codex) && listed.contains(&claude),
+        "{full}"
+    );
+    assert!(
+        !poll.contains("PT_F"),
+        "the poll carries no favorites: {poll}"
+    );
+    assert_eq!(after_delete, vec![claude]);
+    assert!(deleted_gone, "the delete removes the record");
 }
 
 #[tokio::test(flavor = "multi_thread")]

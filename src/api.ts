@@ -17,7 +17,7 @@ import type {
   RemoteFile,
   RemoteFileSize,
   RolloutSlice,
-  SessionSummary,
+  SessionList,
   SshSettings,
   StartedTurn,
   ThemeChoice,
@@ -79,7 +79,8 @@ export const listClaudeModels = () =>
 
 export const listPiModels = () => invoke<PiModel[]>("list_pi_models");
 
-export const listSessions = () => invoke<SessionSummary[]>("list_sessions");
+export const listSessions = (full: boolean) =>
+  invoke<SessionList>("list_sessions", { full });
 
 export const readRollout = (path: string, fromLine: number, harness: Harness) =>
   invoke<RolloutSlice>("read_rollout", { path, fromLine, harness });

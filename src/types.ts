@@ -44,7 +44,6 @@ export interface PersistedState {
   maintenanceMode: boolean;
 
   draftPromptsPath: string;
-  favorites: NewChatDefaults[];
 }
 
 export interface DraftPromptFile {
@@ -144,6 +143,11 @@ export interface SessionSummary {
 
   readAt: number | null;
   label: string | null;
+}
+
+export interface SessionList {
+  sessions: SessionSummary[];
+  favorites: NewChatDefaults[] | null;
 }
 
 export interface RolloutSlice {

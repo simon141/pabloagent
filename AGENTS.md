@@ -31,6 +31,9 @@ configuration.
   workspace files alone.
 - Store shared session metadata in one sidecar file per key. Native session
   records contain no Pablo state.
+- Favorites are host records, one file per favorite under
+  `pabloagent/favorites`, read by the full session listing only. Never keep
+  them on the device or write them as one list.
 - Keep filter IDs stable because device settings persist them. Errors and
   unknown entry types are never filterable.
 - Verify host keys before sending a password. Keep credentials out of file

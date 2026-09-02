@@ -9,15 +9,16 @@ pub mod testing {
     pub use crate::diag::Diagnostics;
     pub use crate::download::{Download, Header, Progress};
     pub use crate::remote::{
-        delete_session_command, download_remote_file_command, list_sessions_command,
-        mark_session_read_command, parse_pretty_session, parse_sessions, parse_turn_poll,
-        poll_turn_command, pretty_session_command, read_rollout_command, refused_because_busy,
-        rewind_session_command, set_pi_session_name_command, set_session_closed_command,
+        delete_favorite_command, delete_session_command, download_remote_file_command,
+        favorite_name, list_sessions_command, mark_session_read_command, parse_favorites,
+        parse_pretty_session, parse_sessions, parse_turn_poll, poll_turn_command,
+        pretty_session_command, read_rollout_command, refused_because_busy, rewind_session_command,
+        save_favorite_command, set_pi_session_name_command, set_session_closed_command,
         start_turn_command, stop_turn_command, Harness, SessionSummary, TurnPoll, TurnRequest,
         TurnState, SCRIPT,
     };
     pub use crate::ssh::{connect_full, ByteSink, ConnectOutcome, Connection, HostKeyPrompt};
-    pub use crate::store::{KnownHost, SshSettings};
+    pub use crate::store::{KnownHost, NewChatDefaults, SshSettings};
 }
 
 use serde::{Deserialize, Serialize};
@@ -25,7 +26,7 @@ use tauri::{AppHandle, Manager, State};
 use tokio::sync::Mutex;
 
 use diag::Diagnostics;
-use remote::{HostCapabilities, SessionSummary, TurnPoll, TurnRequest};
+use remote::{HostCapabilities, TurnPoll, TurnRequest};
 use ssh::{ConnectOutcome, Connection, HostKeyPrompt};
 use store::{KnownHost, NewChatDefaults, PersistedState, SshSettings};
 
@@ -95,30 +96,32 @@ fn save_new_chat_defaults(app: AppHandle, defaults: NewChatDefaults) -> Result<(
     store::save(&app, &persisted)
 }
 
-// Both favorite commands return the stored list so the frontend never drifts
-// from the file.
+// Favorites live on the host so every Pablo instance shares them. Both
+// commands return the host's list so the frontend never drifts from it.
 #[tauri::command]
-fn save_favorite(
-    app: AppHandle,
+async fn save_favorite(
+    state: State<'_, AppState>,
     favorite: NewChatDefaults,
 ) -> Result<Vec<NewChatDefaults>, String> {
-    let mut persisted = store::load(&app);
-    if !persisted.favorites.contains(&favorite) {
-        persisted.favorites.push(favorite);
-        store::save(&app, &persisted)?;
-    }
-    Ok(persisted.favorites)
+    let command = remote::save_favorite_command(&favorite)?;
+    let mut guard = state.connected("saving a favorite").await?;
+    let connection = guard.as_mut().expect("checked");
+    let output = connection.run_ok("save favorite", &command).await?;
+    state.diagnostics.push("remote", "saved a favorite");
+    Ok(remote::parse_favorites(&output))
 }
 
 #[tauri::command]
-fn delete_favorite(
-    app: AppHandle,
+async fn delete_favorite(
+    state: State<'_, AppState>,
     favorite: NewChatDefaults,
 ) -> Result<Vec<NewChatDefaults>, String> {
-    let mut persisted = store::load(&app);
-    persisted.favorites.retain(|f| f != &favorite);
-    store::save(&app, &persisted)?;
-    Ok(persisted.favorites)
+    let command = remote::delete_favorite_command(&favorite)?;
+    let mut guard = state.connected("deleting a favorite").await?;
+    let connection = guard.as_mut().expect("checked");
+    let output = connection.run_ok("delete favorite", &command).await?;
+    state.diagnostics.push("remote", "deleted a favorite");
+    Ok(remote::parse_favorites(&output))
 }
 
 #[tauri::command]
@@ -439,22 +442,30 @@ async fn list_claude_models(
     Ok(models)
 }
 
+// Favorites ride along only on a full refresh: the poll keeps its payload
+// and the picker's favorites do not change under the reader between taps.
 #[tauri::command]
-async fn list_sessions(state: State<'_, AppState>) -> Result<Vec<SessionSummary>, String> {
+async fn list_sessions(
+    state: State<'_, AppState>,
+    full: bool,
+) -> Result<remote::SessionList, String> {
     let mut guard = state.connected("the session list").await?;
     let connection = guard.as_mut().expect("checked");
     let opencode_bin = connection.settings().opencode_bin.clone();
     let output = connection
         .run_ok(
             "list sessions",
-            &remote::list_sessions_command(&opencode_bin),
+            &remote::list_sessions_command(&opencode_bin, full),
         )
         .await?;
     let sessions = remote::parse_sessions(&output);
     state
         .diagnostics
         .push("remote", format!("session list: {} rows", sessions.len()));
-    Ok(sessions)
+    Ok(remote::SessionList {
+        sessions,
+        favorites: full.then(|| remote::parse_favorites(&output)),
+    })
 }
 
 #[derive(Serialize)]

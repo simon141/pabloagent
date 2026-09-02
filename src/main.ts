@@ -678,8 +678,9 @@ function fillConnectForm(s: SshSettings | null): void {
 async function doConnect(next: SshSettings): Promise<void> {
   hideError("connect-error");
   // Whatever the old connection was still reading is about to describe a
-  // different machine's sessions.
+  // different machine's sessions, and so do the favorites on screen.
   sessionsGeneration += 1;
+  setFavorites([]);
   overlay("Connecting…");
   try {
     const outcome = await api.connect(next);
@@ -961,10 +962,12 @@ async function refreshSessionsNow(full: boolean): Promise<void> {
   try {
     // Sorted against the very timestamp the cards display, so the list can
     // never disagree with the "Last message" chip.
-    const fresh = (await api.listSessions())
+    const list = await api.listSessions(full);
+    const fresh = list.sessions
       .slice()
       .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0));
     if (generation !== sessionsGeneration) return;
+    if (list.favorites) setFavorites(list.favorites);
     // A background poll updates what the rows say, never where they sit, a
     // list re-sorted every 1.5s shuffles under the reader's finger. The order
     // changes only on a full refresh.
@@ -3357,7 +3360,6 @@ async function openNewChatModal(cancelForward = false): Promise<void> {
   const draft = pendingDraftDefaults;
   pendingDraftDefaults = null;
   if (draft) agentDefaults = { ...agentDefaults, [draft.harness]: draft };
-  setFavorites(persisted.favorites);
 
   // Only harnesses the host actually has: offering one whose binary is missing
   // would produce a turn that fails for a reason the dialog already knew.
@@ -3539,9 +3541,11 @@ function renderFavoriteToggle(): void {
   button.setAttribute("aria-label", saved ? "Remove favorite" : "Add favorite");
 }
 
+let favoriteToggleInFlight = false;
+
 async function toggleFavoriteFromDialog(): Promise<void> {
   hideError("newchat-error");
-  if (modelsUnavailable(selectedHarness())) return;
+  if (favoriteToggleInFlight || modelsUnavailable(selectedHarness())) return;
   const favorite = dialogFavorite();
   if (!favorite.cwd) {
     showError(
@@ -3552,6 +3556,7 @@ async function toggleFavoriteFromDialog(): Promise<void> {
     return;
   }
   const saved = favorites.some((f) => sameFavorite(f, favorite));
+  favoriteToggleInFlight = true;
   try {
     if (saved) {
       setFavorites(await api.deleteFavorite(favorite));
@@ -3566,6 +3571,8 @@ async function toggleFavoriteFromDialog(): Promise<void> {
       saved ? "Could not remove the favorite" : "Could not save the favorite",
       err,
     );
+  } finally {
+    favoriteToggleInFlight = false;
   }
 }
 
@@ -5248,7 +5255,6 @@ async function main(): Promise<void> {
   maintenanceMode = persisted.maintenanceMode;
   renderDrawerMaintenanceItems();
   draftPromptsPath = persisted.draftPromptsPath;
-  setFavorites(persisted.favorites);
   fillConnectForm(settings);
 
   if (settings?.host && settings.username && settings.password) {

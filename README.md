@@ -83,7 +83,8 @@ at once.
   completed turn remains on the server.
 
 opencode sessions cannot be deleted or rewound because Pablo treats its database
-as read-only. Labels are Pablo-side and stored in a sidecar file. pi is the only
+as read-only. Labels and favorites are Pablo-side and stored in sidecar files on
+the host, so every Pablo instance sees the same ones. pi is the only
 CLI with a session name of its own: renaming a pi session runs `pi --name`, so
 the name is in pi's session record and pi shows it too.
 
