@@ -2120,6 +2120,9 @@ button {
 .composer textarea:focus {
   outline: none;
 }
+.composer textarea:disabled {
+  opacity: 0.6;
+}
 .send-btn {
   flex: 0 0 auto;
   width: 50px;

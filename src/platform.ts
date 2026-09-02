@@ -9,6 +9,15 @@ function desktopMenus(): boolean {
   return /Windows|X11|Linux/.test(ua);
 }
 
+// Touch-first devices type on a soft keyboard, which closes when the focused
+// control is disabled and does not reopen on a programmatic focus.
+export function softKeyboard(): boolean {
+  return (
+    window.matchMedia("(pointer: coarse)").matches ||
+    /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)
+  );
+}
+
 export function anchorMenu(
   menu: HTMLElement,
   sheet: HTMLElement,

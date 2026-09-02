@@ -52,7 +52,7 @@ import {
   piModelChoices,
 } from "./models";
 import { piSessionName } from "./pi-rollout";
-import { anchorMenu, type MenuAnchor } from "./platform";
+import { anchorMenu, type MenuAnchor, softKeyboard } from "./platform";
 import {
   type CodexRateLimits,
   type CodexRateLimitWindow,
@@ -1969,6 +1969,8 @@ function setHarness(harness: Harness): void {
 
 function resetChat(): void {
   chatGeneration += 1;
+  composerSendSeq += 1;
+  $<HTMLTextAreaElement>("composer-input").disabled = false;
   chat.threadId = null;
   chat.rolloutPath = null;
   chat.entries = [];
@@ -2286,14 +2288,14 @@ async function followTurn(
   }
 }
 
-async function sendPrompt(text: string): Promise<void> {
-  if (chat.turnActive) return;
+async function sendPrompt(text: string): Promise<boolean> {
+  if (chat.turnActive) return false;
   if (!chat.cwd) {
     transcript.addError(
       "No workspace",
       "Start a new chat, or open an existing session, before sending anything.",
     );
-    return;
+    return false;
   }
 
   const echoId = `echo-${echoSeq++}`;
@@ -2331,7 +2333,7 @@ async function sendPrompt(text: string): Promise<void> {
     const started = await api.startTurn(request);
     if (chatGeneration !== generation) {
       void refreshSessions();
-      return;
+      return true;
     }
     chat.turnKey = started.key;
     if (newSession) {
@@ -2360,8 +2362,9 @@ async function sendPrompt(text: string): Promise<void> {
     void api.logClient("ui", `turn ${started.key} hosted by ${started.host}`);
     setTurnActive(true);
     void followTurn(started.key, generation);
+    return true;
   } catch (err) {
-    if (chatGeneration !== generation) return;
+    if (chatGeneration !== generation) return false;
     setTurnActive(false);
     transcript.remove(echoId);
     localEchoes.delete(echoId);
@@ -2369,6 +2372,7 @@ async function sendPrompt(text: string): Promise<void> {
       "Failed to start the turn",
       err instanceof Error ? err.message : String(err),
     );
+    return false;
   }
 }
 
@@ -3048,6 +3052,29 @@ function prefillComposer(text: string): void {
     : text;
   // Fire the input listener so the textarea grows to fit what arrived.
   input.dispatchEvent(new Event("input"));
+}
+
+// Counts composer submits. `resetChat` bumps it too, so a send still waiting
+// on the server when the user switches chats leaves the new chat's box alone.
+let composerSendSeq = 0;
+
+// The prompt stays in the box, disabled, until the server has the turn: a send
+// that fails leaves it there to fix or retry instead of in an error bubble.
+async function sendFromComposer(text: string): Promise<void> {
+  const input = $<HTMLTextAreaElement>("composer-input");
+  const key = composerDraftKey();
+  const refocus = document.activeElement === input && !softKeyboard();
+  const seq = ++composerSendSeq;
+  input.disabled = true;
+  const started = await sendPrompt(text);
+  if (started) composerDrafts.delete(key);
+  if (seq !== composerSendSeq) return;
+  input.disabled = false;
+  if (started) {
+    input.value = "";
+    input.dispatchEvent(new Event("input"));
+  }
+  if (refocus) input.focus();
 }
 
 function renderShareNotice(): void {
@@ -5075,11 +5102,8 @@ function wireEvents(): void {
   $("composer").addEventListener("submit", (e) => {
     e.preventDefault();
     const text = input.value.trim();
-    if (!text || chat.turnActive) return;
-    input.value = "";
-    syncComposerDraft("");
-    autoGrow();
-    void sendPrompt(text);
+    if (!text || chat.turnActive || input.disabled) return;
+    void sendFromComposer(text);
   });
 
   // The hold's own click-swallowing is what keeps the release from also
