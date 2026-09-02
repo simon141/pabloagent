@@ -1,6 +1,7 @@
 import { type ClaudeEntry, renderClaudeSession } from "./claude-rollout";
 import {
   addBreakdown,
+  costOf,
   emptyBreakdown,
   type SessionTokens,
   type TokenBreakdown,
@@ -170,6 +171,44 @@ function codexFacts(entries: SessionEntry[]): SessionFacts {
       };
     }
   }
+
+  let model = "";
+  let estimatedSessionCost = 0;
+  let pricedRequests = 0;
+  const countedTotals = new Set<string>();
+  for (const entry of entries) {
+    if (entry.type === "turn_context") {
+      const value = (entry.payload as Record<string, unknown> | undefined)
+        ?.model;
+      if (typeof value === "string" && value) model = value;
+      continue;
+    }
+    const p = entry.payload as Record<string, unknown> | undefined;
+    if (p?.type !== "token_count") continue;
+    const info = record(p.info);
+    const total = record(info?.total_token_usage);
+    const request = codexBreakdown(record(info?.last_token_usage));
+    if (!total || !request) continue;
+    const key = [
+      total.input_tokens,
+      total.cached_input_tokens,
+      total.cache_write_input_tokens,
+      total.output_tokens,
+      total.reasoning_output_tokens,
+      total.total_tokens,
+    ].join(":");
+    if (countedTotals.has(key)) continue;
+    countedTotals.add(key);
+    const cost = costOf(request, model);
+    if (!cost) {
+      pricedRequests = -1;
+      break;
+    }
+    estimatedSessionCost += cost.dollars;
+    pricedRequests += 1;
+  }
+  if (tokens && pricedRequests > 0)
+    tokens.estimatedSessionCost = estimatedSessionCost;
 
   return {
     model: fromTurnContext("model"),

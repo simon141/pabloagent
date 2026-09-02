@@ -877,8 +877,8 @@ check(
   "each Anthropic tier gets its own rate, Haiku matched before the family patterns",
 );
 check(
-  costOf({ ...emptyBreakdown(), input: 1_000_000 }, "gpt-5.6-sol").dollars ===
-    4 &&
+  costOf({ ...emptyBreakdown(), input: 100_000 }, "gpt-5.6-sol").dollars ===
+    0.4 &&
     costOf({ ...emptyBreakdown(), output: 1_000_000 }, "gpt-5.6").dollars ===
       20 &&
     costOf({ ...emptyBreakdown(), output: 1_000_000 }, "gpt-5.6-terra")
@@ -886,6 +886,26 @@ check(
     costOf({ ...emptyBreakdown(), input: 1_000_000 }, "gpt-5.4-mini")
       .dollars === 0.75,
   "each codex model gets its own rate, including the Sol alias, with -mini matched before its parent",
+);
+const atLongContextBoundary = costOf(
+  { ...emptyBreakdown(), input: 272_000, output: 1_000 },
+  "gpt-5.6",
+);
+const aboveLongContextBoundary = costOf(
+  { ...emptyBreakdown(), input: 272_001, output: 1_000 },
+  "gpt-5.6",
+);
+const cachedLongContext = costOf(
+  { ...emptyBreakdown(), cacheRead: 272_001, output: 1_000 },
+  "gpt-5.6",
+);
+check(
+  atLongContextBoundary.dollars === (272_000 * 4 + 1_000 * 20) / 1_000_000 &&
+    aboveLongContextBoundary.dollars ===
+      (272_001 * 4 * 2 + 1_000 * 20 * 1.5) / 1_000_000 &&
+    cachedLongContext.dollars ===
+      (272_001 * 0.1 * 4 * 2 + 1_000 * 20 * 1.5) / 1_000_000,
+  "long-context pricing starts above 272K input, includes cached tokens, and surcharges the full request",
 );
 // Stricter than the window table: an unrecognised `claude-…` or `gpt-…` could
 // be any tier, and a wrong price looks exactly as authoritative as a right one.
@@ -921,6 +941,65 @@ check(
     formatCost(codexCost.lastCost.dollars) === "$0.0003",
   "a codex session is priced from its own token counts, and says the figure is an estimate",
   JSON.stringify([codexCost.lastCost, codexCost.sessionCost]),
+);
+const codexLongContextFacts = sessionFacts(
+  "codex",
+  parseSessionLines(
+    [
+      {
+        type: "turn_context",
+        payload: { model: "gpt-5.6" },
+      },
+      {
+        type: "event_msg",
+        payload: {
+          type: "token_count",
+          info: {
+            total_token_usage: {
+              input_tokens: 200_000,
+              output_tokens: 1_000,
+              total_tokens: 201_000,
+            },
+            last_token_usage: {
+              input_tokens: 200_000,
+              output_tokens: 1_000,
+              total_tokens: 201_000,
+            },
+          },
+        },
+      },
+      {
+        type: "event_msg",
+        payload: {
+          type: "token_count",
+          info: {
+            total_token_usage: {
+              input_tokens: 400_000,
+              output_tokens: 2_000,
+              total_tokens: 402_000,
+            },
+            last_token_usage: {
+              input_tokens: 200_000,
+              output_tokens: 1_000,
+              total_tokens: 201_000,
+            },
+          },
+        },
+      },
+    ]
+      .map(JSON.stringify)
+      .join("\n"),
+  ),
+);
+const codexLongContextCost = contextUsage(
+  codexLongContextFacts.tokens,
+  codexLongContextFacts.model,
+);
+check(
+  codexLongContextCost.sessionCost.dollars ===
+    2 * ((200_000 * 4 + 1_000 * 20) / 1_000_000),
+  "separate sub-272K Codex requests are not surcharged when their session total crosses 272K",
+  JSON.stringify(codexLongContextCost.sessionCost),
 );
 
 // ===========================================================================

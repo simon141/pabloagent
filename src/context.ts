@@ -18,6 +18,7 @@ export interface SessionTokens {
   session: TokenBreakdown;
 
   window: number;
+  estimatedSessionCost?: number;
 }
 
 export function emptyBreakdown(): TokenBreakdown {
@@ -71,6 +72,7 @@ interface ModelPrice {
   input: number;
   output: number;
   cacheReadMultiplier?: number;
+  longContext?: boolean;
 }
 
 function knownPrice(model: string): ModelPrice | null {
@@ -85,12 +87,16 @@ function knownPrice(model: string): ModelPrice | null {
     return { input: 2, output: 10 };
   if (id.includes("sonnet")) return { input: 3, output: 15 };
   if (id.includes("gpt-5.6-sol") || /(^|\/)gpt-5\.6$/.test(id))
-    return { input: 4, output: 20 };
-  if (id.includes("gpt-5.6-terra")) return { input: 2, output: 12 };
-  if (id.includes("gpt-5.6-luna")) return { input: 0.2, output: 1.2 };
-  if (id.includes("gpt-5.5")) return { input: 5, output: 30 };
+    return { input: 4, output: 20, longContext: true };
+  if (id.includes("gpt-5.6-terra"))
+    return { input: 2, output: 12, longContext: true };
+  if (id.includes("gpt-5.6-luna"))
+    return { input: 0.2, output: 1.2, longContext: true };
+  if (id.includes("gpt-5.5"))
+    return { input: 5, output: 30, longContext: true };
   if (id.includes("gpt-5.4-mini")) return { input: 0.75, output: 4.5 };
-  if (id.includes("gpt-5.4")) return { input: 2.5, output: 15 };
+  if (id.includes("gpt-5.4"))
+    return { input: 2.5, output: 15, longContext: true };
   return null;
 }
 
@@ -102,6 +108,7 @@ export interface CostFigure {
 export function costOf(
   tokens: TokenBreakdown,
   model: string,
+  applyLongContextPricing = true,
 ): CostFigure | null {
   if (tokens.cost !== null) return { dollars: tokens.cost, estimated: false };
   const price = knownPrice(model);
@@ -112,8 +119,14 @@ export function costOf(
     tokens.cacheRead * (price.cacheReadMultiplier ?? 0.1) +
     write5m * 1.25 +
     tokens.cacheWrite1h * 2;
+  const longContext =
+    applyLongContextPricing &&
+    price.longContext === true &&
+    tokens.input + tokens.cacheRead + tokens.cacheWrite > 272_000;
   const dollars =
-    (inputUnits * price.input + tokens.output * price.output) / 1_000_000;
+    (inputUnits * price.input * (longContext ? 2 : 1) +
+      tokens.output * price.output * (longContext ? 1.5 : 1)) /
+    1_000_000;
   return { dollars, estimated: true };
 }
 
@@ -132,7 +145,14 @@ export function contextUsage(
     last: tokens.last,
     session: tokens.session,
     lastCost: costOf(tokens.last, model),
-    sessionCost: costOf(tokens.session, model),
+    sessionCost:
+      tokens.estimatedSessionCost === undefined
+        ? costOf(
+            tokens.session,
+            model,
+            tokens.session.total === tokens.last.total,
+          )
+        : { dollars: tokens.estimatedSessionCost, estimated: true },
   };
 }
 
