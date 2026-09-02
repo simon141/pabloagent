@@ -4340,6 +4340,9 @@ async function saveDraftAsTyped(name: string): Promise<void> {
       createdAt: new Date().toISOString(),
     }),
   );
+  const input = $<HTMLTextAreaElement>("composer-input");
+  input.value = "";
+  input.dispatchEvent(new Event("input"));
   toast("Draft saved");
 }
 
