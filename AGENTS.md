@@ -70,12 +70,22 @@ they install beside the released app. Only the GitHub release workflow builds
 the bare `app.pabloagent`, by setting `ORG_GRADLE_PROJECT_githubApk=true`.
 Verify every APK with `scripts/verify-apk.sh`, which checks the id.
 
-Build the portable Windows executable with:
+Build the portable Windows executable and the NSIS installer with `makensis`
+on `PATH`:
 
 ```bash
 npm run tauri -- build --runner cargo-xwin \
-  --target x86_64-pc-windows-msvc --no-bundle
+  --target x86_64-pc-windows-msvc --bundles nsis
 ```
 
 The executable is
-`src-tauri/target/x86_64-pc-windows-msvc/release/pabloagent.exe`.
+`src-tauri/target/x86_64-pc-windows-msvc/release/pabloagent.exe` and the
+installer is the `*-setup.exe` under
+`src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/`. Pass
+`--no-bundle` instead of `--bundles nsis` to skip the installer.
+
+The bundler stamps the executable inside the installer with its bundle type
+and leaves the loose executable unstamped. The store reads that stamp: the
+installed build keeps `pabloagent.json` in app data and the portable build keeps
+it beside the executable. Never ship the executable extracted from the installer
+as the portable build.

@@ -35,7 +35,7 @@ jobs:
             const labels = {
               'pablo-android-arm64': 'Android arm64 APK',
               'pablo-linux-x86_64': 'Linux x86_64 binary and AppImage',
-              'pablo-windows-x86_64': 'Windows x86_64 executable',
+              'pablo-windows-x86_64': 'Windows x86_64 portable executable and installer',
             };
             const links = artifacts
               .filter((artifact) => labels[artifact.name])

@@ -1,6 +1,7 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+use tauri::utils::{config::BundleType, platform::bundle_type};
 use tauri::{AppHandle, Manager};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,14 +73,33 @@ impl Default for PersistedState {
     }
 }
 
+const PORTABLE_HOST: bool = cfg!(all(windows, not(debug_assertions)));
+
+// The bundler stamps only the exe it packs into the NSIS installer with a
+// bundle type, so the loose exe from the same compile is the portable build.
+fn is_portable(bundle: Option<BundleType>) -> bool {
+    PORTABLE_HOST && bundle != Some(BundleType::Nsis)
+}
+
+fn portable_dir(exe: &Path) -> Result<PathBuf, String> {
+    exe.parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| format!("the executable {} has no parent directory", exe.display()))
+}
+
 fn state_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("cannot resolve app data dir: {e}"))?;
+    let dir = if is_portable(bundle_type()) {
+        let exe = std::env::current_exe()
+            .map_err(|e| format!("cannot resolve the executable path: {e}"))?;
+        portable_dir(&exe)?
+    } else {
+        app.path()
+            .app_data_dir()
+            .map_err(|e| format!("cannot resolve app data dir: {e}"))?
+    };
     std::fs::create_dir_all(&dir)
-        .map_err(|e| format!("cannot create app data dir {}: {e}", dir.display()))?;
-    Ok(dir.join("connection.json"))
+        .map_err(|e| format!("cannot create state dir {}: {e}", dir.display()))?;
+    Ok(dir.join("pabloagent.json"))
 }
 
 pub fn load(app: &AppHandle) -> PersistedState {
@@ -163,7 +183,7 @@ mod tests {
     #[test]
     fn a_write_is_atomic_owner_only_and_leaves_no_temp_file() {
         let dir = scratch_dir("write");
-        let path = dir.join("connection.json");
+        let path = dir.join("pabloagent.json");
         write_privately(&path, b"{\"first\":true}").unwrap();
         write_privately(&path, b"{\"second\":true}").unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"second\":true}");
@@ -183,7 +203,7 @@ mod tests {
     #[test]
     fn a_failed_write_preserves_the_previous_file() {
         let dir = scratch_dir("failed");
-        let path = dir.join("connection.json");
+        let path = dir.join("pabloagent.json");
         write_privately(&path, b"{\"kept\":true}").unwrap();
         // A directory squatting on the temp path fails the write before the
         // destination is ever touched, the shape of every failure here: the
@@ -199,13 +219,31 @@ mod tests {
     fn an_overly_broad_existing_file_is_repaired() {
         use std::os::unix::fs::PermissionsExt;
         let dir = scratch_dir("repair");
-        let path = dir.join("connection.json");
+        let path = dir.join("pabloagent.json");
         std::fs::write(&path, "{}").unwrap();
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
         restrict_permissions(&path);
         let mode = std::fs::metadata(&path).unwrap().permissions().mode();
         assert_eq!(mode & 0o777, 0o600);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_installed_build_is_never_portable() {
+        assert!(!is_portable(Some(BundleType::Nsis)));
+    }
+
+    #[cfg(all(windows, not(debug_assertions)))]
+    #[test]
+    fn an_unstamped_windows_release_build_is_portable() {
+        assert!(is_portable(None));
+    }
+
+    #[test]
+    fn a_portable_build_keeps_its_state_beside_the_executable() {
+        let exe = Path::new("/apps/pablo/pabloagent.exe");
+        assert_eq!(portable_dir(exe).unwrap(), Path::new("/apps/pablo"));
+        assert!(portable_dir(Path::new("/")).is_err());
     }
 
     #[test]

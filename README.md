@@ -21,9 +21,13 @@ It started as complete hands-off experiment built from Claude Code and Codex, th
 Latest build from `main`:
 
 - [Android arm64 APK](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-android-arm64.apk)
-- [Windows x86_64 executable](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-windows-x86_64.exe)
+- [Windows x86_64 portable executable](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-windows-portable.exe)
+- [Windows x86_64 installer](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-windows-setup.exe)
 - [Linux x86_64 binary](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-linux-x86_64)
 - [Linux x86_64 AppImage](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-linux-x86_64.AppImage)
+
+The portable Windows executable keeps its `pabloagent.json` next to the
+executable. The Windows installer keeps it in the user's app data directory.
 
 ## Server requirements
 

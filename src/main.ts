@@ -692,7 +692,14 @@ async function doConnect(next: SshSettings): Promise<void> {
     settings = next;
     capabilities = outcome.capabilities;
     resetModelCatalogs();
-    await api.saveSettings(next);
+    try {
+      await api.saveSettings(next);
+    } catch (err) {
+      overlay(null);
+      goto("connect");
+      showConnectError("Connected, but could not save the settings", err);
+      return;
+    }
     // A host whose CLI has never run has no sessions directory at all, which
     // would otherwise look like an empty list for no stated reason.
     if (!outcome.capabilities.sessionsDirExists) {
@@ -3415,13 +3422,12 @@ async function createNewChat(): Promise<void> {
   chatGeneration += 1;
   show($("modal-newchat"), false);
   clearForwardOnNewChatCancel = false;
-  await api.saveNewChatDefaults({
-    harness,
-    model,
-    effort,
-    cwd,
-    permissionMode,
-  });
+  await api
+    .saveNewChatDefaults({ harness, model, effort, cwd, permissionMode })
+    .catch((err) => {
+      void api.logClient("ui", `could not save new chat defaults: ${err}`);
+      toast("Chat started, but its defaults were not saved");
+    });
 
   enterNewChat(harness, model, effort, cwd, permissionMode);
   consumePendingShare();
@@ -4712,7 +4718,12 @@ async function handleDrawerAction(action: string): Promise<void> {
         "Forget",
       );
       if (!ok) return;
-      await api.clearSettings();
+      try {
+        await api.clearSettings();
+      } catch (err) {
+        showError("sessions-error", "Could not forget the server", err);
+        return;
+      }
       settings = null;
       resetModelCatalogs();
       // The 1.5s poll has been running behind this dialog; a reply still in

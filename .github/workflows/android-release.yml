@@ -180,28 +180,33 @@ jobs:
           workspaces: src-tauri
           key: x86_64-pc-windows-msvc
 
-      - name: Install the cross linker
+      - name: Install the cross linker and NSIS
         timeout-minutes: 10
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang lld llvm
+          sudo apt-get install -y --no-install-recommends clang lld llvm nsis
 
       - run: npm ci
 
-      - name: Cross-compile the portable Windows executable
-        run: npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc --no-bundle
+      - name: Cross-compile the Windows executable and NSIS installer
+        run: npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis
 
-      - name: Verify and package the Windows executable
+      - name: Verify and package the Windows outputs
         run: |
           executable=src-tauri/target/x86_64-pc-windows-msvc/release/pabloagent.exe
           file "$executable" | grep -F 'PE32+ executable'
+          installer=$(find src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis -name '*-setup.exe' | head -1)
+          file "$installer" | grep -F 'Nullsoft Installer'
           mkdir -p "$RUNNER_TEMP/release-assets"
-          cp "$executable" "$RUNNER_TEMP/release-assets/pabloagent-windows-x86_64.exe"
+          cp "$executable" "$RUNNER_TEMP/release-assets/pabloagent-windows-portable.exe"
+          cp "$installer" "$RUNNER_TEMP/release-assets/pabloagent-windows-setup.exe"
 
       - uses: actions/upload-artifact@v4
         with:
           name: pablo-windows-x86_64
-          path: ${{ runner.temp }}/release-assets/pabloagent-windows-x86_64.exe
+          path: |
+            ${{ runner.temp }}/release-assets/pabloagent-windows-portable.exe
+            ${{ runner.temp }}/release-assets/pabloagent-windows-setup.exe
           if-no-files-found: error
           retention-days: 14
 
