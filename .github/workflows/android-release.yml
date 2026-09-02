@@ -194,9 +194,13 @@ jobs:
       - name: Verify and package the Windows outputs
         run: |
           executable=src-tauri/target/x86_64-pc-windows-msvc/release/pabloagent.exe
-          file "$executable" | grep -F 'PE32+ executable'
           installer=$(find src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis -name '*-setup.exe' | head -1)
-          file "$installer" | grep -F 'Nullsoft Installer'
+          test -n "$installer"
+          file "$executable" | grep -F 'PE32+ executable'
+          file "$installer" | grep -F 'PE32 executable'
+          grep -q -a -F NullsoftInst "$installer"
+          grep -q -a -F __TAURI_BUNDLE_TYPE_VAR_UNK "$executable"
+          7z e -so "$installer" pabloagent.exe | grep -q -a -F __TAURI_BUNDLE_TYPE_VAR_NSS
           mkdir -p "$RUNNER_TEMP/release-assets"
           cp "$executable" "$RUNNER_TEMP/release-assets/pabloagent-windows-portable.exe"
           cp "$installer" "$RUNNER_TEMP/release-assets/pabloagent-windows-setup.exe"
