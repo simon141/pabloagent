@@ -70,12 +70,15 @@ function knownWindow(model: string): number {
 interface ModelPrice {
   input: number;
   output: number;
+  cacheReadMultiplier?: number;
 }
 
 function knownPrice(model: string): ModelPrice | null {
   const id = model.toLowerCase();
   if (!id) return null;
   if (id.includes("haiku")) return { input: 1, output: 5 };
+  if (/fable-5-1|mythos-5-1/.test(id))
+    return { input: 10, output: 50, cacheReadMultiplier: 0.025 };
   if (/fable|mythos/.test(id)) return { input: 10, output: 50 };
   if (id.includes("opus")) return { input: 5, output: 25 };
   if (id.includes("sonnet-5") || /^sonnet(?:\[1m\])?$/.test(id))
@@ -105,7 +108,7 @@ export function costOf(
   const write5m = Math.max(tokens.cacheWrite - tokens.cacheWrite1h, 0);
   const inputUnits =
     tokens.input +
-    tokens.cacheRead * 0.1 +
+    tokens.cacheRead * (price.cacheReadMultiplier ?? 0.1) +
     write5m * 1.25 +
     tokens.cacheWrite1h * 2;
   const dollars =
