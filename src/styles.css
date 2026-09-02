@@ -1406,7 +1406,6 @@ button {
 .draft-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 .drafts-status.loading {
   display: flex;
@@ -1424,16 +1423,20 @@ button {
 }
 .draft-row {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: center;
+  gap: 8px;
   flex: 0 0 auto;
   text-align: left;
-  padding: 11px 12px;
-  border: 1px solid var(--line);
+  padding: 8px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
   border-radius: 0;
   background: transparent;
   color: var(--text);
   cursor: pointer;
+}
+.draft-row:first-child {
+  border-top: 1px solid var(--line);
 }
 .draft-row:focus-visible {
   outline: none;
@@ -1441,16 +1444,18 @@ button {
   border-color: var(--accent);
 }
 .draft-row-title {
+  flex: 1 1 auto;
+  min-width: 0;
   font-weight: 600;
-  font-size: 15px;
-}
-.draft-row-sub,
-.draft-row-preview {
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.draft-row-chevron {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 14px;
 }
 /* Save carries a spinner while the server answers. A button is not a flex
  * container by default, and `.spinner-inline` is sized, not intrinsic. */

@@ -4359,22 +4359,10 @@ function renderDraftsList(drafts: ListedDraft[]): void {
     title.className = "draft-row-title";
     title.textContent = d.id;
     row.appendChild(title);
-    const sub = document.createElement("span");
-    sub.className = "draft-row-sub";
-    sub.textContent = [
-      harnessById(d.harness).badge,
-      d.model || "default model",
-      d.cwd,
-    ]
-      .filter(Boolean)
-      .join(" · ");
-    row.appendChild(sub);
-    if (d.prompt) {
-      const preview = document.createElement("span");
-      preview.className = "draft-row-preview";
-      preview.textContent = d.prompt;
-      row.appendChild(preview);
-    }
+    const chevron = document.createElement("span");
+    chevron.className = "draft-row-chevron";
+    chevron.textContent = "›";
+    row.appendChild(chevron);
     attachHoldMenu(row, (at) => openDraftMenu(d, at));
     row.addEventListener("click", () => {
       if (consumeLongPress(row)) return;
