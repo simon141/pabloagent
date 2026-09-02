@@ -15,6 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -71,20 +74,6 @@ jobs:
           EOF
 
       - run: npm ci
-
-      - name: Check the rollout renderer
-        run: npm run check:rollout
-
-      - name: Install Linux libraries for Rust tests
-        timeout-minutes: 10
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev \
-            libxdo-dev libayatana-appindicator3-dev tmux
-
-      - name: Test the transport and remote shell
-        run: cd src-tauri && cargo test
 
       - name: Build the release APK
         run: npm run android:build
@@ -218,7 +207,7 @@ jobs:
 
   publish:
     if: github.event_name == 'push'
-    needs: [android, linux, windows]
+    needs: [checks, android, linux, windows]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

@@ -1,16 +1,10 @@
 name: Checks
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: checks-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   frontend:
