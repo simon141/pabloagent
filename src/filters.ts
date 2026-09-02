@@ -34,6 +34,7 @@ const DEFAULT_HIDDEN: Partial<Record<Harness, readonly string[]>> = {
     "type:permission-mode",
     "type:pr-link",
     "type:attachment:queued_command",
+    "type:attachment:silent_turn_reminder",
     "type:attachment:task_reminder",
     "type:attachment:total_tokens_reminder",
   ],
