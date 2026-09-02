@@ -78,6 +78,8 @@ function knownPrice(model: string): ModelPrice | null {
   if (id.includes("haiku")) return { input: 1, output: 5 };
   if (/fable|mythos/.test(id)) return { input: 10, output: 50 };
   if (id.includes("opus")) return { input: 5, output: 25 };
+  if (id.includes("sonnet-5") || /^sonnet(?:\[1m\])?$/.test(id))
+    return { input: 2, output: 10 };
   if (id.includes("sonnet")) return { input: 3, output: 15 };
   if (id.includes("gpt-5.6-sol")) return { input: 5, output: 30 };
   if (id.includes("gpt-5.6-terra")) return { input: 2, output: 12 };
