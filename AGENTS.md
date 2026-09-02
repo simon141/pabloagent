@@ -45,7 +45,8 @@ regression test.
 
 ## Verification
 
-Run `npm run lint` before every commit, then the checks for what changed:
+Run `npm run lint` before every commit, then the checks for what changed.
+`npm test` runs the session parser, draft format, and Rust checks together:
 
 - frontend: `npm run typecheck` and `npm run build`
 - Rust, from `src-tauri`: `cargo fmt --check`,
