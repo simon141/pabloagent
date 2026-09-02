@@ -1452,6 +1452,18 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.draft-row-age {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--chip-bg);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .draft-row-chevron {
   flex: 0 0 auto;
   color: var(--muted);

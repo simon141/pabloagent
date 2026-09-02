@@ -813,6 +813,36 @@ function relativeTime(unixSeconds: number | null | undefined): string | null {
   return plural(Math.round(days / 365.25), "year");
 }
 
+const COMPACT_AGE_UNITS: [number, string][] = [
+  [31_557_600, "y"],
+  [2_629_800, "mo"],
+  [604_800, "w"],
+  [86_400, "d"],
+  [3_600, "h"],
+  [60, "m"],
+];
+
+function compactAge(unixSeconds: number | null | undefined): string | null {
+  if (
+    unixSeconds == null ||
+    !Number.isFinite(unixSeconds) ||
+    unixSeconds <= 0
+  ) {
+    return null;
+  }
+  const elapsed = Date.now() / 1000 - unixSeconds;
+  for (const [size, unit] of COMPACT_AGE_UNITS) {
+    if (elapsed >= size) return `${Math.floor(elapsed / size)}${unit} ago`;
+  }
+  return "just now";
+}
+
+function relativeLabel(at: number, format: string | undefined): string | null {
+  if (format === "short") return shortWhen(at);
+  if (format === "compact") return compactAge(at);
+  return relativeTime(at);
+}
+
 function relativeSpan(
   unixSeconds: number | null | undefined,
   label = "",
@@ -831,8 +861,7 @@ function relativeSpan(
 function refreshRelativeLabels(): void {
   for (const el of document.querySelectorAll<HTMLElement>("[data-rel-at]")) {
     const at = Number(el.dataset.relAt);
-    const text =
-      el.dataset.relFormat === "short" ? shortWhen(at) : relativeTime(at);
+    const text = relativeLabel(at, el.dataset.relFormat);
     if (text !== null) el.textContent = `${el.dataset.relLabel ?? ""}${text}`;
   }
 }
@@ -4400,6 +4429,16 @@ function renderDraftsList(drafts: ListedDraft[]): void {
     title.className = "draft-row-title";
     title.textContent = d.id;
     row.appendChild(title);
+    const createdAt = Date.parse(d.createdAt) / 1000;
+    const age = compactAge(createdAt);
+    if (age !== null) {
+      const pill = document.createElement("span");
+      pill.className = "draft-row-age";
+      pill.dataset.relAt = String(createdAt);
+      pill.dataset.relFormat = "compact";
+      pill.textContent = age;
+      row.appendChild(pill);
+    }
     const chevron = document.createElement("span");
     chevron.className = "draft-row-chevron";
     chevron.textContent = "›";
