@@ -4021,6 +4021,7 @@ async function toggleOpenSessionClosed(): Promise<void> {
   renderChatSessionPill();
   renderSessionList();
   toast(closing ? "Session closed" : "Session reopened");
+  if (closing) openSessionsView();
 }
 
 function renderChatMenuDelete(): void {
