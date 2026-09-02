@@ -3364,7 +3364,10 @@ async function openNewChatModal(cancelForward = false): Promise<void> {
   const offered = availableHarnesses();
   const harnessSelect = $<HTMLSelectElement>("nc-harness");
   harnessSelect.innerHTML = "";
-  for (const h of offered) {
+  const sorted = [...offered].sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { numeric: true }),
+  );
+  for (const h of sorted) {
     const opt = document.createElement("option");
     opt.value = h.id;
     opt.textContent = h.label;
