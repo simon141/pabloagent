@@ -4,8 +4,11 @@ use serde::{Deserialize, Serialize};
 use tauri::utils::{config::BundleType, platform::bundle_type};
 use tauri::{AppHandle, Manager};
 
+// Every persisted struct is `#[serde(default)]` so a state file written before
+// a field existed still loads; a parse failure falls back to a default state
+// and the next save then overwrites the user's settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct SshSettings {
     pub host: String,
     pub port: u16,
@@ -18,16 +21,32 @@ pub struct SshSettings {
     pub default_cwd: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+impl Default for SshSettings {
+    fn default() -> Self {
+        Self {
+            host: String::new(),
+            port: 22,
+            username: String::new(),
+            password: String::new(),
+            codex_bin: "codex".into(),
+            claude_bin: "claude".into(),
+            opencode_bin: "opencode".into(),
+            pi_bin: "pi".into(),
+            default_cwd: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct KnownHost {
     pub algorithm: String,
     pub fingerprint: String,
     pub openssh: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct NewChatDefaults {
     pub harness: String,
     pub model: String,
@@ -37,7 +56,7 @@ pub struct NewChatDefaults {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct PersistedState {
     pub settings: Option<SshSettings>,
     pub known_hosts: std::collections::HashMap<String, KnownHost>,
@@ -252,6 +271,64 @@ mod tests {
             serde_json::from_str(&serde_json::to_string(&state).unwrap()).unwrap();
         assert_eq!(restored.chat_font_size, 17);
         assert!(restored.send_on_enter);
+    }
+
+    fn saved_state() -> serde_json::Value {
+        let state = PersistedState {
+            settings: Some(SshSettings {
+                host: "box.example".into(),
+                username: "simon".into(),
+                password: "secret".into(),
+                ..SshSettings::default()
+            }),
+            agent_defaults: [(
+                "claude".to_string(),
+                NewChatDefaults {
+                    harness: "claude".into(),
+                    model: "opus".into(),
+                    ..NewChatDefaults::default()
+                },
+            )]
+            .into(),
+            theme: "dark".into(),
+            chat_font_size: 17,
+            ..PersistedState::default()
+        };
+        serde_json::from_str(&serde_json::to_string(&state).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn a_state_file_missing_a_new_top_level_field_keeps_the_settings() {
+        let mut json = saved_state();
+        json.as_object_mut().unwrap().remove("draftPromptsPath");
+        let restored: PersistedState = serde_json::from_value(json).unwrap();
+        assert_eq!(restored.settings.unwrap().host, "box.example");
+        assert_eq!(restored.theme, "dark");
+        assert_eq!(restored.draft_prompts_path, "");
+    }
+
+    #[test]
+    fn a_state_file_missing_a_new_ssh_field_keeps_the_settings() {
+        let mut json = saved_state();
+        json["settings"].as_object_mut().unwrap().remove("piBin");
+        let restored: PersistedState = serde_json::from_value(json).unwrap();
+        let settings = restored.settings.unwrap();
+        assert_eq!(settings.host, "box.example");
+        assert_eq!(settings.pi_bin, "pi");
+        assert_eq!(restored.chat_font_size, 17);
+    }
+
+    #[test]
+    fn a_state_file_missing_a_new_chat_default_field_keeps_the_settings() {
+        let mut json = saved_state();
+        json["agentDefaults"]["claude"]
+            .as_object_mut()
+            .unwrap()
+            .remove("permissionMode");
+        let restored: PersistedState = serde_json::from_value(json).unwrap();
+        assert_eq!(restored.settings.unwrap().host, "box.example");
+        assert_eq!(restored.agent_defaults["claude"].model, "opus");
+        assert_eq!(restored.agent_defaults["claude"].permission_mode, "");
     }
 
     // Favorites moved to the host; a state file from a build that kept them
