@@ -4528,7 +4528,10 @@ function renderDraftsList(drafts: ListedDraft[]): void {
     return;
   }
   show(status, false);
-  for (const d of drafts) {
+  const sorted = [...drafts].sort((a, b) =>
+    a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" }),
+  );
+  for (const d of sorted) {
     const row = document.createElement("button");
     row.type = "button";
     row.className = "draft-row";
