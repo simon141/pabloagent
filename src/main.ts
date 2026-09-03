@@ -2400,6 +2400,15 @@ function rewindActionFor(
   item: ThreadItem,
   text: string,
 ): { label: string; run: () => void; disabled?: boolean } | null {
+  // Rewinding to the first prompt would leave nothing behind, so the action
+  // starts at the second one.
+  const [firstUserId] = rolloutUserIds;
+  if (
+    !firstUserId ||
+    firstUserId === String((item as { id?: string }).id ?? "")
+  ) {
+    return null;
+  }
   const reason = harnessById(chat.harness).cannotRewindReason;
   if (reason) {
     return {
