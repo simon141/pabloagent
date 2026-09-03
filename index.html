@@ -247,7 +247,7 @@
             id="chat-session"
             type="button"
             class="session-pill"
-            aria-label="Rename session"
+            aria-label="Session details"
           >
             <span id="chat-session-title" class="session-pill-title">Session</span>
             <span id="chat-session-sub" class="session-pill-sub"></span>
@@ -466,23 +466,13 @@
           <span>Filters</span>
           <span id="chat-menu-filters-count" class="chat-menu-note"></span>
         </button>
-        <!-- pi is the only CLI that keeps a name of its own, so this writes
-             the session record itself rather than the sidecar below. -->
         <button
-          id="chat-menu-name"
+          id="chat-menu-details"
           type="button"
           class="chat-menu-item"
           role="menuitem"
         >
-          Rename session…
-        </button>
-        <button
-          id="chat-menu-label"
-          type="button"
-          class="chat-menu-item"
-          role="menuitem"
-        >
-          Set label…
+          Session details…
         </button>
         <!-- The sidecar's "done with this" flag: a checkbox, so ticking it
              off reopens the session. -->
@@ -818,58 +808,36 @@
       </div>
     </div>
 
-    <!-- The sidecar's label: a title override in this app's own record, never
-         in anything a CLI reads. The original title stays visible here because
-         the label replaces it everywhere else. -->
-    <div id="modal-label" class="modal" hidden>
+    <!-- The name is pi's own, written into its session record with
+         `pi --name`; the label is the sidecar's title override, never in
+         anything a CLI reads. -->
+    <div id="modal-details" class="modal" hidden>
       <div class="modal-sheet">
-        <h2>Session label</h2>
-        <p id="label-original" class="muted small"></p>
-        <label
-          >Label
-          <input
-            id="label-input"
-            type="text"
-            maxlength="120"
-            autocapitalize="sentences"
-            autocomplete="off"
-          />
-        </label>
-        <p class="muted small">
-          Shown instead of the session title, in this app only. Leave blank to
-          remove the label.
-        </p>
-        <div id="label-error" class="error-panel" hidden></div>
-        <div class="modal-actions">
-          <button id="label-cancel" type="button" class="ghost">Cancel</button>
-          <button id="label-save" type="button" class="primary">Save</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="modal-name" class="modal" hidden>
-      <div class="modal-sheet">
-        <h2>Rename session</h2>
-        <p id="name-original" class="muted small"></p>
+        <h2>Session details</h2>
         <label
           >Name
           <input
-            id="name-input"
+            id="details-name"
             type="text"
             maxlength="120"
             autocapitalize="sentences"
             autocomplete="off"
           />
         </label>
-        <p class="muted small">
-          Written into pi's own session record with
-          <span class="mono">pi --name</span>, so pi shows it too. A name cannot
-          be blank.
-        </p>
-        <div id="name-error" class="error-panel" hidden></div>
+        <label
+          >Label
+          <input
+            id="details-label"
+            type="text"
+            maxlength="120"
+            autocapitalize="sentences"
+            autocomplete="off"
+          />
+        </label>
+        <div id="details-error" class="error-panel" hidden></div>
         <div class="modal-actions">
-          <button id="name-cancel" type="button" class="ghost">Cancel</button>
-          <button id="name-save" type="button" class="primary">Save</button>
+          <button id="details-cancel" type="button" class="ghost">Cancel</button>
+          <button id="details-save" type="button" class="primary">Save</button>
         </div>
       </div>
     </div>

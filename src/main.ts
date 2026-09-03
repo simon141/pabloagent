@@ -1456,16 +1456,10 @@ function openSessionMenu(s: SessionSummary, at?: MenuAnchor): void {
             () => toast("Copy failed"),
           ),
       },
-      // Only pi has a name of its own to change; the rest carry the app's
-      // label, which the chat's own menu sets.
-      ...(s.harness === "pi"
-        ? [
-            {
-              label: s.title ? "Rename session…" : "Name session…",
-              run: () => openNameModal(renameTargetFor(s)),
-            },
-          ]
-        : []),
+      {
+        label: "Session details…",
+        run: () => openSessionDetails(detailsTargetFor(s)),
+      },
       harness.cannotDeleteReason
         ? {
             label: `Delete from server — ${harness.cannotDeleteReason}`,
@@ -1541,10 +1535,12 @@ function renderChatSessionPill(): void {
 
   // `chat.title` covers the gap where a brand-new session gains a harness title
   // mid-first-turn, before the picker has a row to carry it.
+  // Untruncated: the pill's CSS clips to the width it has, so a cut here would
+  // add an ellipsis the wide desktop header does not need.
   title.textContent =
     chat.title ||
     (current
-      ? sessionTitle(current)
+      ? sessionTitle(current, Infinity)
       : chat.rolloutPath || chat.turnActive
         ? "New chat"
         : "No session");
@@ -1554,10 +1550,10 @@ function renderChatSessionPill(): void {
   button.disabled = false;
   button.setAttribute(
     "aria-label",
-    labelable ? "Label session" : "Session title",
+    labelable ? "Session details" : "Session title",
   );
   sub.textContent =
-    truncateLabel(chat.label) ?? (labelable ? "Tap to label" : "");
+    truncateLabel(chat.label, Infinity) ?? (labelable ? "Tap to label" : "");
   delete sub.dataset.relAt;
 }
 
@@ -3714,8 +3710,7 @@ function openChatMenu(): void {
   renderChatMenuRefresh();
   renderChatMenuSessionData();
   renderChatMenuSessionPretty();
-  renderChatMenuName();
-  renderChatMenuLabel();
+  renderChatMenuDetails();
   renderChatMenuClose();
   renderChatMenuDelete();
   show($("chat-menu"), true);
@@ -3815,181 +3810,153 @@ async function refreshOpenChat(): Promise<void> {
   }
 }
 
-function renderChatMenuLabel(): void {
-  const item = $<HTMLButtonElement>("chat-menu-label");
-  if (!chat.threadId) {
-    item.disabled = true;
-    item.textContent = "Set label — no session saved yet";
-  } else {
-    item.disabled = false;
-    item.textContent = chat.label ? "Edit label…" : "Set label…";
-  }
+function renderChatMenuDetails(): void {
+  const item = $<HTMLButtonElement>("chat-menu-details");
+  item.disabled = !chat.threadId;
+  item.textContent = chat.threadId
+    ? "Session details…"
+    : "Session details — no session saved yet";
 }
 
-function openLabelModal(): void {
-  if (!chat.threadId) {
-    showAlert(
-      "No session yet",
-      "This chat has no session on the server until its first message is" +
-        " sent. Send one, then a label can be set.",
-    );
-    return;
-  }
-  hideError("label-error");
-  const current = sessions.find(isOpenSession);
-  const original = truncateLabel(
-    chat.title || current?.title || current?.preview || "",
-    80,
-  );
-  $("label-original").textContent = original
-    ? `Session title: ${original}`
-    : "Session title: (no prompt yet)";
-  const input = $<HTMLInputElement>("label-input");
-  input.value = chat.label ?? current?.label ?? "";
-  show($("modal-label"), true);
-  input.focus();
-  input.select();
-}
-
-async function saveSessionLabel(): Promise<void> {
-  if (!chat.threadId) return;
-  // Collapsed, not truncated: the input's own maxlength caps the length, and
-  // the sidecar file is one line, so this is exactly what will be read back.
-  const label = $<HTMLInputElement>("label-input")
-    .value.replace(/\s+/g, " ")
-    .trim();
-  hideError("label-error");
-  const save = $<HTMLButtonElement>("label-save");
-  save.disabled = true;
-  try {
-    await api.setSessionLabel(chat.harness, chat.threadId, label);
-    chat.label = label || null;
-    const row = sessions.find(isOpenSession);
-    if (row) row.label = label || null;
-    renderChatSessionPill();
-    renderSessionList();
-    show($("modal-label"), false);
-    toast(label ? "Label saved" : "Label removed");
-  } catch (err) {
-    showError("label-error", "Could not save the label", err);
-  } finally {
-    save.disabled = false;
-  }
-}
-
-// The session pi is asked to name, addressed the way pi wants it: by file.
-interface RenameTarget {
-  path: string;
+interface SessionDetailsTarget {
+  harness: Harness;
   threadId: string;
+  path: string | null;
   name: string;
-  subtitle: string;
+  label: string;
+  nameLocked: boolean;
 }
 
-let renameTarget: RenameTarget | null = null;
+let detailsTarget: SessionDetailsTarget | null = null;
 
-function renameTargetFor(s: SessionSummary): RenameTarget {
+// pi is the only harness with a name of its own, and it appends the name to
+// the session file a running turn is writing.
+function nameLocked(
+  harness: Harness,
+  path: string | null,
+  turnActive: boolean,
+): boolean {
+  return harness !== "pi" || !path || turnActive;
+}
+
+// A locked Name box shows what the header shows: the harness title, or the
+// start of the first prompt when there is none.
+function lockedName(title: string | null, preview: string | null): string {
+  return truncateLabel(title || preview, Infinity) ?? "";
+}
+
+function detailsTargetFor(s: SessionSummary): SessionDetailsTarget {
+  const locked = nameLocked(
+    s.harness,
+    s.path,
+    isOpenSession(s) && chat.turnActive,
+  );
   return {
-    path: s.path,
+    harness: s.harness,
     threadId: s.id,
-    name: s.title ?? "",
-    subtitle: truncateLabel(s.preview, 80) ?? "(no prompt yet)",
+    path: s.path,
+    name: locked ? lockedName(s.title, s.preview) : (s.title ?? ""),
+    label: s.label ?? "",
+    nameLocked: locked,
   };
 }
 
-function renderChatMenuName(): void {
-  const item = $<HTMLButtonElement>("chat-menu-name");
-  if (chat.harness !== "pi") {
-    item.disabled = true;
-    item.textContent = "Rename session — pi sessions only";
-  } else if (!chat.threadId || !chat.rolloutPath) {
-    item.disabled = true;
-    item.textContent = "Rename session — no session saved yet";
-  } else if (chat.turnActive) {
-    // pi appends the name to the session file the running turn is writing.
-    item.disabled = true;
-    item.textContent = "Rename session — turn in progress";
-  } else {
-    item.disabled = false;
-    item.textContent = chat.title ? "Rename session…" : "Name session…";
-  }
-}
-
-function openNameModal(target: RenameTarget): void {
-  renameTarget = target;
-  hideError("name-error");
-  $("name-original").textContent = `Session: ${target.subtitle}`;
-  const input = $<HTMLInputElement>("name-input");
-  input.value = target.name;
-  show($("modal-name"), true);
-  input.focus();
-  input.select();
-}
-
-function openChatNameModal(): void {
-  if (chat.harness !== "pi") {
-    showAlert(
-      "Cannot rename this session",
-      "Only pi keeps a name of its own. Use “Set label…” to name this" +
-        " session in this app instead.",
-    );
-    return;
-  }
-  const path = chat.rolloutPath;
-  if (!chat.threadId || !path) {
+function openChatSessionDetails(): void {
+  if (!chat.threadId) {
     showAlert(
       "No session yet",
       "This chat has no session on the server until its first message is" +
-        " sent. Send one, then it can be named.",
+        " sent. Send one, then its details can be changed.",
     );
     return;
   }
   const current = sessions.find(isOpenSession);
-  openNameModal({
-    path,
+  const locked = nameLocked(chat.harness, chat.rolloutPath, chat.turnActive);
+  const title = chat.title || current?.title || null;
+  openSessionDetails({
+    harness: chat.harness,
     threadId: chat.threadId,
-    name: chat.title ?? current?.title ?? "",
-    subtitle: truncateLabel(current?.preview ?? "", 80) ?? "(no prompt yet)",
+    path: chat.rolloutPath,
+    name: locked ? lockedName(title, current?.preview ?? null) : (title ?? ""),
+    label: chat.label ?? current?.label ?? "",
+    nameLocked: locked,
   });
 }
 
-async function saveSessionName(): Promise<void> {
-  const target = renameTarget;
+function openSessionDetails(target: SessionDetailsTarget): void {
+  detailsTarget = target;
+  hideError("details-error");
+  const name = $<HTMLInputElement>("details-name");
+  const label = $<HTMLInputElement>("details-label");
+  name.value = target.name;
+  name.disabled = target.nameLocked;
+  label.value = target.label;
+  show($("modal-details"), true);
+  const first = name.disabled ? label : name;
+  first.focus();
+  first.select();
+}
+
+async function saveSessionDetails(): Promise<void> {
+  const target = detailsTarget;
   if (!target) return;
-  // Collapsed the way the server collapses it, so the input agrees with the
-  // entry pi writes.
-  const name = $<HTMLInputElement>("name-input")
-    .value.replace(/\s+/g, " ")
-    .trim();
-  hideError("name-error");
-  if (!name) {
+  // Collapsed, not truncated: the inputs' own maxlength caps the length, the
+  // sidecar file is one line, and the server collapses pi's name the same way.
+  const collapse = (value: string) => value.replace(/\s+/g, " ").trim();
+  const name = collapse($<HTMLInputElement>("details-name").value);
+  const label = collapse($<HTMLInputElement>("details-label").value);
+  const path = target.path;
+  const renaming = path !== null && !target.nameLocked && name !== target.name;
+  const relabeling = label !== target.label;
+  hideError("details-error");
+  if (renaming && !name) {
     showError(
-      "name-error",
+      "details-error",
       "Enter a name",
       "pi has no blank session name — a session either has one or keeps the one it has.",
     );
     return;
   }
-  const save = $<HTMLButtonElement>("name-save");
+  if (!renaming && !relabeling) {
+    show($("modal-details"), false);
+    return;
+  }
+  const isOpen =
+    chat.harness === target.harness && chat.threadId === target.threadId;
+  const row = sessions.find(
+    (s) => s.harness === target.harness && s.id === target.threadId,
+  );
+  const save = $<HTMLButtonElement>("details-save");
   save.disabled = true;
   try {
-    await api.setPiSessionName(target.path, target.threadId, name);
+    if (relabeling) {
+      await api.setSessionLabel(target.harness, target.threadId, label);
+      target.label = label;
+      if (row) row.label = label || null;
+      if (isOpen) chat.label = label || null;
+    }
+    if (renaming) {
+      await api.setPiSessionName(path, target.threadId, name);
+      target.name = name;
+      if (row) row.title = name;
+      if (isOpen) chat.title = name;
+    }
   } catch (err) {
-    showError("name-error", "Could not rename the session", err);
+    renderChatSessionPill();
+    renderSessionList();
+    showError("details-error", "Could not save the session details", err);
     return;
   } finally {
     save.disabled = false;
   }
-  const row = sessions.find(
-    (s) => s.harness === "pi" && s.id === target.threadId,
-  );
-  if (row) row.title = name;
-  show($("modal-name"), false);
-  toast("Session renamed");
+  show($("modal-details"), false);
+  if (renaming && relabeling) toast("Session details saved");
+  else if (renaming) toast("Session renamed");
+  else toast(label ? "Label saved" : "Label removed");
   // pi records the name as an entry in the session itself, so a chat holding
   // that session re-reads it: nothing else would put the card on screen, and
   // going back to an open chat does not re-read it either.
-  if (chat.harness === "pi" && chat.threadId === target.threadId) {
-    chat.title = name;
+  if (renaming && isOpen) {
     overlay("Reloading chat…");
     try {
       await reloadChat();
@@ -4962,13 +4929,9 @@ function wireEvents(): void {
     void openPrettySessionFile();
   });
   $("chat-menu-filters").addEventListener("click", () => openFiltersModal());
-  $("chat-menu-name").addEventListener("click", () => {
+  $("chat-menu-details").addEventListener("click", () => {
     closeChatMenu();
-    openChatNameModal();
-  });
-  $("chat-menu-label").addEventListener("click", () => {
-    closeChatMenu();
-    openLabelModal();
+    openChatSessionDetails();
   });
   $("chat-menu-close").addEventListener("click", () => {
     closeChatMenu();
@@ -4994,7 +4957,7 @@ function wireEvents(): void {
   $("filters-close").addEventListener("click", () =>
     show($("modal-filters"), false),
   );
-  $("chat-session").addEventListener("click", openLabelModal);
+  $("chat-session").addEventListener("click", openChatSessionDetails);
   $("alert-close").addEventListener("click", () =>
     show($("modal-alert"), false),
   );
@@ -5011,26 +4974,18 @@ function wireEvents(): void {
       () => toast("Copy failed"),
     );
   });
-  $("label-cancel").addEventListener("click", () =>
-    show($("modal-label"), false),
+  $("details-cancel").addEventListener("click", () =>
+    show($("modal-details"), false),
   );
-  $("label-save").addEventListener("click", () => void saveSessionLabel());
-  $<HTMLInputElement>("label-input").addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      void saveSessionLabel();
-    }
-  });
-  $("name-cancel").addEventListener("click", () =>
-    show($("modal-name"), false),
-  );
-  $("name-save").addEventListener("click", () => void saveSessionName());
-  $<HTMLInputElement>("name-input").addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      void saveSessionName();
-    }
-  });
+  $("details-save").addEventListener("click", () => void saveSessionDetails());
+  for (const id of ["details-name", "details-label"]) {
+    $<HTMLInputElement>(id).addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void saveSessionDetails();
+      }
+    });
+  }
   $("chat-interrupt").addEventListener("click", () => void interruptTurn());
   // Forced: the whole point is that the view is nowhere near the bottom, and
   // the unforced path would decline.

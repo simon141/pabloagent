@@ -383,6 +383,9 @@ textarea {
 .session-pill-sub:empty {
   display: none;
 }
+.session-pill:not(:disabled):active .session-pill-sub {
+  color: var(--accent);
+}
 
 .hero {
   padding: 24px 4px 8px;
@@ -439,6 +442,9 @@ textarea:focus,
 select:focus {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
+}
+input:disabled {
+  opacity: 0.6;
 }
 .hint {
   font-size: 11.5px;
