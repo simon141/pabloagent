@@ -139,6 +139,16 @@ fn save_transcript_filters(
 }
 
 #[tauri::command]
+fn clear_transcript_filters(app: AppHandle, harness: String) -> Result<(), String> {
+    if harness.trim().is_empty() {
+        return Ok(());
+    }
+    let mut persisted = store::load(&app);
+    persisted.transcript_filters.remove(&harness);
+    store::save(&app, &persisted)
+}
+
+#[tauri::command]
 fn save_theme(app: AppHandle, theme: String) -> Result<(), String> {
     let mut persisted = store::load(&app);
     persisted.theme = theme;
@@ -973,6 +983,7 @@ pub fn run() {
             save_favorite,
             delete_favorite,
             save_transcript_filters,
+            clear_transcript_filters,
             save_theme,
             save_chat_font_size,
             save_send_on_enter,

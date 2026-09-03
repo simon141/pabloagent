@@ -39,6 +39,8 @@ export const deleteFavorite = (favorite: NewChatDefaults) =>
 
 export const saveTranscriptFilters = (harness: Harness, hidden: string[]) =>
   invoke<void>("save_transcript_filters", { harness, hidden });
+export const clearTranscriptFilters = (harness: Harness) =>
+  invoke<void>("clear_transcript_filters", { harness });
 
 export const saveTheme = (theme: ThemeChoice) =>
   invoke<void>("save_theme", { theme });

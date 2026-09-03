@@ -4165,9 +4165,21 @@ function openFiltersModal(): void {
 
 function saveFilters(hidden: string[]): void {
   const harness = chat.harness;
-  transcriptFilters[harness] = hidden;
+  const defaults = defaultHidden(harness);
+  const isDefault =
+    hidden.length === defaults.length &&
+    hidden.every((id, index) => id === defaults[index]);
+  if (isDefault) {
+    delete transcriptFilters[harness];
+  } else {
+    transcriptFilters[harness] = hidden;
+  }
   applyTranscriptFilters();
-  void api.saveTranscriptFilters(harness, hidden).catch((err) => {
+  void (
+    isDefault
+      ? api.clearTranscriptFilters(harness)
+      : api.saveTranscriptFilters(harness, hidden)
+  ).catch((err) => {
     // The transcript already reflects the choice; only the memory of it is lost,
     // so this is worth a line in the log rather than a modal.
     void api.logClient("ui", `could not save transcript filters: ${err}`);
