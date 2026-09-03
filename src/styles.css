@@ -158,6 +158,8 @@
 }
 
 [hidden] {
+  /* biome-ignore lint/complexity/noImportantStyles: `hidden` must beat every
+     `display` a class sets, including ones of higher specificity. */
   display: none !important;
 }
 
@@ -705,6 +707,19 @@ button {
   --avatar-bg: var(--avatar-pi);
 }
 
+.harness-icon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  width: 1.25em;
+  height: 1.25em;
+}
+.harness-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 .session-avatar {
   flex: 0 0 auto;
   display: flex;
@@ -869,18 +884,6 @@ button {
   opacity: 0.3;
   pointer-events: none;
 }
-.harness-icon {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  width: 1.25em;
-  height: 1.25em;
-}
-.harness-icon svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
 
 /* A long workspace path ellipsises instead of pushing the context pill off
  * screen; `min-width: 0` is what lets a flex item shrink below its content. */
@@ -923,92 +926,6 @@ button {
 }
 .context-pill:active {
   filter: brightness(1.35);
-}
-
-/*
- * The context dialog carries more rows than any other, so the gap is tighter and
- * every child leaves the spacing to it. A `<p>` in a flex column is the trap:
- * its 1em UA margin is added to the gap, not merged with it.
- */
-#modal-context .modal-sheet {
-  gap: 10px;
-}
-#modal-context .modal-sheet > p {
-  margin: 0;
-}
-#ctx-codex-usage-note a,
-#ctx-claude-usage-note a {
-  color: var(--link);
-  overflow-wrap: anywhere;
-}
-#ctx-codex-usage-note a:active,
-#ctx-claude-usage-note a:active {
-  color: var(--link-active);
-}
-
-.ctx-headline {
-  margin: 0;
-  font-size: 26px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.ctx-headline.low {
-  color: var(--ok);
-}
-.ctx-headline.mid {
-  color: var(--warn);
-}
-.ctx-headline.high {
-  color: var(--danger);
-}
-.ctx-meter {
-  height: 8px;
-  /*
-   * `overflow: hidden` makes a flex item's automatic minimum size zero instead
-   * of its content height, and this bar is 8px of pure background with no
-   * content to hold it open — without `flex: 0 0 auto` an overflowing sheet
-   * flattens it to nothing.
-   */
-  flex: 0 0 auto;
-  border-radius: 999px;
-  background: var(--chip-bg);
-  overflow: hidden;
-}
-.ctx-meter-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--muted);
-  transition: width 0.2s ease;
-}
-.ctx-meter-fill.low {
-  background: var(--ok);
-}
-.ctx-meter-fill.mid {
-  background: var(--warn);
-}
-.ctx-meter-fill.high {
-  background: var(--danger);
-}
-/* The sheet's gap already provides the air above the rule; the margin only
- * tops up what the gap does not cover. */
-.ctx-limits {
-  margin-top: 2px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-.ctx-limits h3 {
-  margin: 0 0 9px;
-  font-size: 14px;
-}
-.ctx-limits .kv {
-  gap: 7px 12px;
-}
-.ctx-limits .kv dd {
-  text-align: right;
-  word-break: normal;
-}
-.ctx-limits > p {
-  margin: 9px 0 0;
 }
 
 /* Back to the live end, while the reader is away from the bottom. */
@@ -1306,6 +1223,11 @@ button {
 .chat-menu-item:disabled .chat-menu-checkbox::after {
   display: none;
 }
+.filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 /*
  * The sheet holds still and the list scrolls, so Done stays on screen.
  * `min-height: 0` is what lets a flex item shrink below its content and become
@@ -1322,11 +1244,6 @@ button {
   /* Nothing is clipped mid-row at the edges of the scroll. */
   margin: 0 -4px;
   padding: 0 4px;
-}
-.filter-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 .filter-heading {
   margin: 10px 0 2px;
@@ -1390,6 +1307,10 @@ button {
   color: var(--text);
 }
 
+.draft-list {
+  display: flex;
+  flex-direction: column;
+}
 /*
  * Scrolls its list, not its sheet, so Close stays on screen. `flex: 0 1 auto`
  * rather than `1 1`: a list of two drafts must not stretch to push Close to
@@ -1408,10 +1329,6 @@ button {
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-}
-.draft-list {
-  display: flex;
-  flex-direction: column;
 }
 .drafts-status.loading {
   display: flex;
@@ -2386,6 +2303,92 @@ button {
   word-break: break-all;
 }
 
+/*
+ * The context dialog carries more rows than any other, so the gap is tighter and
+ * every child leaves the spacing to it. A `<p>` in a flex column is the trap:
+ * its 1em UA margin is added to the gap, not merged with it.
+ */
+#modal-context .modal-sheet {
+  gap: 10px;
+}
+#modal-context .modal-sheet > p {
+  margin: 0;
+}
+#ctx-codex-usage-note a,
+#ctx-claude-usage-note a {
+  color: var(--link);
+  overflow-wrap: anywhere;
+}
+#ctx-codex-usage-note a:active,
+#ctx-claude-usage-note a:active {
+  color: var(--link-active);
+}
+
+.ctx-headline {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ctx-headline.low {
+  color: var(--ok);
+}
+.ctx-headline.mid {
+  color: var(--warn);
+}
+.ctx-headline.high {
+  color: var(--danger);
+}
+.ctx-meter {
+  height: 8px;
+  /*
+   * `overflow: hidden` makes a flex item's automatic minimum size zero instead
+   * of its content height, and this bar is 8px of pure background with no
+   * content to hold it open — without `flex: 0 0 auto` an overflowing sheet
+   * flattens it to nothing.
+   */
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  overflow: hidden;
+}
+.ctx-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--muted);
+  transition: width 0.2s ease;
+}
+.ctx-meter-fill.low {
+  background: var(--ok);
+}
+.ctx-meter-fill.mid {
+  background: var(--warn);
+}
+.ctx-meter-fill.high {
+  background: var(--danger);
+}
+/* The sheet's gap already provides the air above the rule; the margin only
+ * tops up what the gap does not cover. */
+.ctx-limits {
+  margin-top: 2px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.ctx-limits h3 {
+  margin: 0 0 9px;
+  font-size: 14px;
+}
+.ctx-limits .kv {
+  gap: 7px 12px;
+}
+.ctx-limits .kv dd {
+  text-align: right;
+  word-break: normal;
+}
+.ctx-limits > p {
+  margin: 9px 0 0;
+}
+
 .scrollable {
   flex: 1 1 auto;
   min-height: 90px;
@@ -2468,12 +2471,12 @@ button {
   padding-top: 6px;
   min-height: 102px;
 }
-.drawer-stat + .drawer-stat {
-  margin-top: 7px;
-}
 .drawer-stat {
   line-height: 1.55;
   font-variant-numeric: tabular-nums;
+}
+.drawer-stat + .drawer-stat {
+  margin-top: 7px;
 }
 .drawer-stat-line {
   display: flex;
