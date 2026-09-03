@@ -921,6 +921,31 @@ pub fn parse_draft_prompts(output: &str) -> Vec<DraftFile> {
         .collect()
 }
 
+pub fn rename_draft_prompt_command(dir: &str, id: &str, new_id: &str) -> Result<String, String> {
+    let d = draft_dir_expr(dir)?;
+    let from = quote(draft_name(id)?);
+    let to = quote(draft_name(new_id)?);
+    Ok(format!(
+        "d={d}\n\
+         f={from}\n\
+         t={to}\n\
+         if [ ! -f \"$d/$f.md\" ]; then\n\
+           printf 'PT_DM\\n'\n\
+           exit 0\n\
+         fi\n\
+         if [ -e \"$d/$t.md\" ]; then\n\
+           printf 'PT_DE\\n'\n\
+           exit 0\n\
+         fi\n\
+         mkdir -p -- \"$(dirname -- \"$d/$t.md\")\" || exit 1\n\
+         mv -- \"$d/$f.md\" \"$d/$t.md\""
+    ))
+}
+
+pub fn draft_rename_missing(output: &str) -> bool {
+    output.lines().any(|line| line.trim() == "PT_DM")
+}
+
 pub fn delete_draft_prompt_command(dir: &str, id: &str) -> Result<String, String> {
     let d = draft_dir_expr(dir)?;
     let name = quote(&format!("{}.md", draft_name(id)?));
@@ -2617,6 +2642,27 @@ mod tests {
         assert!(draft_save_conflict("PT_DE\n"));
         assert!(draft_save_conflict("noise\nPT_DE\n"));
         assert!(!draft_save_conflict("nothing here\n"));
+    }
+
+    #[test]
+    fn a_renamed_draft_checks_both_names_before_moving() {
+        let cmd = rename_draft_prompt_command("~/drafts", "old name", "new/na'me").unwrap();
+        assert!(cmd.contains("d=\"$HOME\"/'drafts'"), "{cmd}");
+        assert!(cmd.contains("f='old name'"), "{cmd}");
+        assert!(cmd.contains(r#"t='new/na'\''me'"#), "{cmd}");
+        assert!(cmd.contains("[ ! -f \"$d/$f.md\" ]"), "{cmd}");
+        assert!(cmd.contains("[ -e \"$d/$t.md\" ]"), "{cmd}");
+        assert!(
+            cmd.contains("mkdir -p -- \"$(dirname -- \"$d/$t.md\")\""),
+            "{cmd}"
+        );
+        assert!(cmd.contains("mv -- \"$d/$f.md\" \"$d/$t.md\""), "{cmd}");
+
+        assert!(rename_draft_prompt_command("/tmp/drafts", "../oops", "fine").is_err());
+        assert!(rename_draft_prompt_command("/tmp/drafts", "fine", ".hidden").is_err());
+
+        assert!(draft_rename_missing("PT_DM\n"));
+        assert!(!draft_rename_missing("PT_DE\n"));
     }
 
     #[test]

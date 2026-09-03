@@ -4434,15 +4434,20 @@ async function saveDraftAsTyped(name: string): Promise<void> {
 }
 
 let draftNameAction: ((name: string) => Promise<void>) | null = null;
+let draftNameVerb = "save";
 
 function openDraftNameModal(
   heading: string,
   initial: string,
   onSave: (name: string) => Promise<void>,
+  verb = "save",
 ): void {
   draftNameAction = onSave;
+  draftNameVerb = verb;
   hideError("draft-name-error");
   $("draft-name-heading").textContent = heading;
+  $("draft-name-save-label").textContent =
+    verb.charAt(0).toUpperCase() + verb.slice(1);
   const input = $<HTMLInputElement>("draft-name-input");
   input.value = initial;
   show($("modal-draft-name"), true);
@@ -4471,7 +4476,7 @@ async function submitDraftName(): Promise<void> {
     draftNameAction = null;
     show($("modal-draft-name"), false);
   } catch (err) {
-    showError("draft-name-error", "Could not save the draft", err);
+    showError("draft-name-error", `Could not ${draftNameVerb} the draft`, err);
   } finally {
     save.disabled = false;
     show($("draft-name-spinner"), false);
@@ -4586,6 +4591,7 @@ function openDraftMenu(d: ListedDraft, at?: MenuAnchor): void {
       ...(d.readOnly
         ? []
         : [{ label: "Use & remove", run: () => useDraft(d, true) }]),
+      ...(d.readOnly ? [] : [{ label: "Rename…", run: () => renameDraft(d) }]),
       { label: "Duplicate…", run: () => duplicateDraft(d) },
       ...(d.readOnly
         ? []
@@ -4620,6 +4626,22 @@ function duplicateDraft(d: DraftPrompt): void {
     toast("Draft duplicated");
     void openDraftsModal();
   });
+}
+
+function renameDraft(d: DraftPrompt): void {
+  show($("modal-drafts"), false);
+  openDraftNameModal(
+    "Rename draft",
+    d.id,
+    async (name) => {
+      if (name !== d.id) {
+        await api.renameDraftPrompt(draftPromptsPath, d.id, name);
+        toast("Draft renamed");
+      }
+      void openDraftsModal();
+    },
+    "rename",
+  );
 }
 
 async function deleteDraft(d: DraftPrompt): Promise<void> {

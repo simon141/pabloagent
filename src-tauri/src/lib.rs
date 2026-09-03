@@ -222,6 +222,31 @@ async fn list_draft_prompts(
 }
 
 #[tauri::command]
+async fn rename_draft_prompt(
+    state: State<'_, AppState>,
+    dir: String,
+    id: String,
+    name: String,
+) -> Result<(), String> {
+    let command = remote::rename_draft_prompt_command(&dir, &id, &name)?;
+    let mut guard = state.connected("renaming a draft prompt").await?;
+    let connection = guard.as_mut().expect("checked");
+    let output = connection.run_ok("rename draft prompt", &command).await?;
+    if remote::draft_rename_missing(&output) {
+        return Err(format!("The draft '{id}' is no longer on the server."));
+    }
+    if remote::draft_save_conflict(&output) {
+        return Err(format!(
+            "A draft named '{name}' already exists — choose another name."
+        ));
+    }
+    state
+        .diagnostics
+        .push("remote", format!("renamed draft prompt {id} to {name}"));
+    Ok(())
+}
+
+#[tauri::command]
 async fn delete_draft_prompt(
     state: State<'_, AppState>,
     dir: String,
@@ -992,6 +1017,7 @@ pub fn run() {
             save_draft_prompt,
             list_draft_prompts,
             delete_draft_prompt,
+            rename_draft_prompt,
             mark_session_read,
             set_session_closed,
             set_session_label,

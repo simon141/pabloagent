@@ -66,6 +66,9 @@ export const listDraftPrompts = (dir: string) =>
 export const deleteDraftPrompt = (dir: string, id: string) =>
   invoke<void>("delete_draft_prompt", { dir, id });
 
+export const renameDraftPrompt = (dir: string, id: string, name: string) =>
+  invoke<void>("rename_draft_prompt", { dir, id, name });
+
 export const connect = (settings: SshSettings) =>
   invoke<ConnectOutcome>("connect", { settings });
 export const acceptHostKey = (prompt: HostKeyPrompt) =>
