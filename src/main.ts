@@ -1031,7 +1031,7 @@ interface SessionMark {
   unread: boolean;
 }
 
-const isOpenSession = (s: SessionSummary) =>
+const isOpenSession = (s: Pick<SessionSummary, "harness" | "id">) =>
   s.harness === chat.harness && s.id === chat.threadId;
 
 function sessionMark(s: SessionSummary): SessionMark {
@@ -1499,6 +1499,12 @@ async function deleteSessionFromServer(s: SessionSummary): Promise<boolean> {
     "Delete",
   );
   if (!ok) return false;
+  return removeSessionFromServer(s);
+}
+
+async function removeSessionFromServer(
+  s: Pick<SessionSummary, "path" | "harness" | "id">,
+): Promise<boolean> {
   overlay("Deleting session…");
   try {
     await api.deleteSession(s.path, harnessById(s.harness).id, s.id);
@@ -2477,6 +2483,72 @@ async function rewindChat(keepLines: number, prompt: string): Promise<void> {
       err instanceof Error ? err.message : String(err),
     );
   }
+}
+
+function restartActionFor(
+  item: ThreadItem,
+  text: string,
+): {
+  label: string;
+  run: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+} | null {
+  const [firstUserId] = rolloutUserIds;
+  if (
+    !firstUserId ||
+    firstUserId !== String((item as { id?: string }).id ?? "") ||
+    !text.trim() ||
+    !chat.rolloutPath ||
+    !chat.threadId
+  ) {
+    return null;
+  }
+  const reason = harnessById(chat.harness).cannotDeleteReason;
+  if (reason) {
+    return {
+      label: `Restart this chat — ${reason}`,
+      run: () => {},
+      disabled: true,
+      danger: true,
+    };
+  }
+  if (chat.turnActive) {
+    return {
+      label: "Restart this chat — wait for the turn to finish",
+      run: () => {},
+      disabled: true,
+      danger: true,
+    };
+  }
+  return {
+    label: "Restart this chat",
+    danger: true,
+    run: () => void restartChat(text),
+  };
+}
+
+async function restartChat(prompt: string): Promise<void> {
+  if (chat.turnActive) {
+    toast("Wait for this turn to finish before restarting");
+    return;
+  }
+  const { rolloutPath: path, harness, threadId: id } = chat;
+  if (!path || !id) return;
+  // A session holding only this prompt loses nothing, so it is not asked.
+  if (rolloutUserIds.size >= 2) {
+    const ok = await askConfirm(
+      "Restart this chat?",
+      "Your current session will be lost. Are you sure you want to restart this chat?",
+      "Restart",
+    );
+    if (!ok) return;
+  }
+  if (!(await removeSessionFromServer({ path, harness, id }))) return;
+  // Staged like a forward to the picker, so a cancelled dialog keeps the
+  // prompt on offer there instead of losing it with the deleted session.
+  forwardPrompt(prompt, "existing");
+  void openNewChatModal();
 }
 
 async function reloadChat(): Promise<void> {
@@ -5200,6 +5272,7 @@ async function main(): Promise<void> {
     hideActionFor,
     resolveTranscriptImage,
     rewindActionFor,
+    restartActionFor,
   );
   // Solid at either end of the conversation, ghosted in the middle where it
   // lies over what the reader came to read.

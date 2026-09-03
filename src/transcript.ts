@@ -22,6 +22,7 @@ interface BubbleAction {
   run: () => void | Promise<void>;
 
   disabled?: boolean;
+  danger?: boolean;
 }
 
 export type ScrollEdge = "top" | "bottom" | "both" | "middle";
@@ -670,6 +671,9 @@ export class Transcript {
   private rewindAction:
     | ((item: ThreadItem, text: string) => BubbleAction | null)
     | null;
+  private restartAction:
+    | ((item: ThreadItem, text: string) => BubbleAction | null)
+    | null;
   private onForward:
     | ((text: string, target: "new" | "existing") => void)
     | null;
@@ -705,6 +709,7 @@ export class Transcript {
       fresh: boolean,
     ) => Promise<string | null>,
     rewindAction?: (item: ThreadItem, text: string) => BubbleAction | null,
+    restartAction?: (item: ThreadItem, text: string) => BubbleAction | null,
   ) {
     this.onCopy = onCopy;
     this.onResend = onResend ?? null;
@@ -714,6 +719,7 @@ export class Transcript {
     this.hideAction = hideAction ?? null;
     this.onImage = onImage ?? null;
     this.rewindAction = rewindAction ?? null;
+    this.restartAction = restartAction ?? null;
 
     // Links in model output must never navigate the webview, hand them to
     // the OS browser instead. Delegated, so it covers every bubble ever
@@ -1244,7 +1250,9 @@ export class Transcript {
     for (const action of actions) {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "bubble-menu-item";
+      button.className = action.danger
+        ? "bubble-menu-item danger"
+        : "bubble-menu-item";
       button.setAttribute("role", "menuitem");
       button.textContent = action.label;
       if (action.disabled) {
@@ -1359,6 +1367,8 @@ export class Transcript {
           },
         );
       }
+      const restart = this.restartAction?.(bubble.item, text());
+      if (restart) actions.push(restart);
       this.showMenu(actions, at);
     });
   }
