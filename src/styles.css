@@ -1008,6 +1008,11 @@ button {
 .transcript > * {
   flex: 0 0 auto;
 }
+/* Code, diffs, shell output and error text follow the chat font size like
+ * every other transcript entry; `.mono` elsewhere keeps its fixed size. */
+.transcript .mono {
+  font-size: calc(var(--chat-font-size) * 0.833);
+}
 
 .bubble {
   font-size: var(--chat-font-size);
@@ -1088,7 +1093,7 @@ button {
 }
 .bubble .role {
   display: block;
-  font-size: 10.5px;
+  font-size: calc(var(--chat-font-size) * 0.7);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1534,7 +1539,7 @@ button {
   flex: 0 0 auto;
   color: var(--muted);
   transition: transform 0.15s ease;
-  font-size: 11px;
+  font-size: calc(var(--chat-font-size) * 0.733);
 }
 .card.open .card-head .chev {
   transform: rotate(90deg);
@@ -1550,11 +1555,11 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: calc(var(--chat-font-size) * 0.867);
 }
 .card-head .badge {
   flex: 0 0 auto;
-  font-size: 10.5px;
+  font-size: calc(var(--chat-font-size) * 0.7);
   padding: 2px 7px;
   border-radius: 8px;
   background: var(--badge-bg);
@@ -1698,7 +1703,7 @@ button {
   background: var(--code-bg);
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 11.5px;
+  font-size: calc(var(--chat-font-size) * 0.767);
   word-break: break-word;
 }
 .shell-notes:last-child {
@@ -1717,7 +1722,7 @@ button {
 
 .card-body pre.prose {
   font-family: inherit;
-  font-size: 13px;
+  font-size: calc(var(--chat-font-size) * 0.867);
   line-height: 1.5;
   color: var(--text);
   background: transparent;
@@ -1737,7 +1742,7 @@ button {
 }
 .card-body .sub {
   margin-top: 9px;
-  font-size: 12px;
+  font-size: calc(var(--chat-font-size) * 0.8);
   color: var(--muted);
   white-space: pre-wrap;
   word-break: break-word;
@@ -2600,7 +2605,7 @@ button {
   border-radius: 9px;
   border: 1px dashed var(--line);
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(var(--chat-font-size) * 0.8);
   word-break: break-all;
 }
 .md-img.loaded {
