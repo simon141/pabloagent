@@ -54,6 +54,9 @@ export const saveSendOnEnter = (on: boolean) =>
 export const saveMaintenanceMode = (on: boolean) =>
   invoke<void>("save_maintenance_mode", { on });
 
+export const saveFavoritesCollapsed = (collapsed: boolean) =>
+  invoke<void>("save_favorites_collapsed", { collapsed });
+
 export const saveDraftPromptsPath = (path: string) =>
   invoke<void>("save_draft_prompts_path", { path });
 

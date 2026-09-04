@@ -42,6 +42,7 @@ export interface PersistedState {
   chatFontSize: ChatFontSize;
   sendOnEnter: boolean;
   maintenanceMode: boolean;
+  favoritesCollapsed: boolean;
 
   draftPromptsPath: string;
 }

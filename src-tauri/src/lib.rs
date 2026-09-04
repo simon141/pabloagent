@@ -177,6 +177,13 @@ fn save_maintenance_mode(app: AppHandle, on: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn save_favorites_collapsed(app: AppHandle, collapsed: bool) -> Result<(), String> {
+    let mut persisted = store::load(&app);
+    persisted.favorites_collapsed = collapsed;
+    store::save(&app, &persisted)
+}
+
+#[tauri::command]
 fn save_draft_prompts_path(app: AppHandle, path: String) -> Result<(), String> {
     let mut persisted = store::load(&app);
     persisted.draft_prompts_path = path;
@@ -1013,6 +1020,7 @@ pub fn run() {
             save_chat_font_size,
             save_send_on_enter,
             save_maintenance_mode,
+            save_favorites_collapsed,
             save_draft_prompts_path,
             save_draft_prompt,
             list_draft_prompts,

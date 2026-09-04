@@ -609,6 +609,103 @@ button {
   font-size: 12.5px;
 }
 
+.nc-favorites {
+  display: flex;
+  flex-direction: column;
+}
+.nc-favorites-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+.nc-favorites-header:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.nc-favorites-chevron {
+  display: inline-block;
+  font-size: 16px;
+  line-height: 1;
+  transform: rotate(90deg);
+  transition: transform 0.15s ease;
+}
+.nc-favorites.collapsed .nc-favorites-chevron {
+  transform: none;
+}
+.nc-favorites-count {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.nc-favorites-list {
+  display: flex;
+  flex-direction: column;
+}
+.nc-favorites.collapsed .nc-favorites-list {
+  display: none;
+}
+.nc-favorite-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.nc-favorite-row:first-child {
+  border-top: 1px solid var(--line);
+}
+.nc-favorite-row:focus-visible {
+  outline: none;
+  background: var(--bg-input);
+}
+.nc-favorite-row.active {
+  background: var(--bg-input);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.nc-favorite-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.nc-favorite-row-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.nc-favorite-row-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+.nc-favorite-row-title,
+.nc-favorite-row-sub {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .nc-pending {
   margin: 4px 0 0;
   padding: 8px 10px;
@@ -733,6 +830,10 @@ button {
 .session-avatar .harness-icon {
   width: 24px;
   height: 24px;
+}
+.nc-favorite-row .harness-icon {
+  width: 22px;
+  height: 22px;
 }
 /*
  * A running turn animates the CLI's own mark, slowly: 2.4s reads as "still

@@ -157,6 +157,7 @@ let maintenanceMode = false;
 let draftPromptsPath = "";
 let capabilities: HostCapabilities | null = null;
 let favorites: NewChatDefaults[] = [];
+let favoritesCollapsed = false;
 
 function availableHarnesses(): HarnessInfo[] {
   if (!capabilities) return HARNESSES;
@@ -3425,8 +3426,12 @@ async function loadModels(harness: CatalogHarness): Promise<void> {
       );
     }
   }
-  if (!$("modal-newchat").hidden && selectedHarness() === harness) {
+  if ($("modal-newchat").hidden) return;
+  renderDialogFavorites();
+  if (selectedHarness() === harness) {
     renderHarnessOptions(harness, agentDefaults[harness]);
+  } else {
+    renderFavoriteToggle();
   }
 }
 
@@ -3491,6 +3496,7 @@ async function openNewChatModal(cancelForward = false): Promise<void> {
   activateHarnessOptions(chosen, agentDefaults[chosen]);
   $<HTMLInputElement>("nc-cwd").value =
     agentDefaults[chosen]?.cwd || settings?.defaultCwd || "";
+  renderDialogFavorites();
   renderFavoriteToggle();
 }
 
@@ -3597,6 +3603,7 @@ function setFavorites(list: NewChatDefaults[]): void {
     );
   });
   show($("sessions-favorites"), favorites.length > 0);
+  renderDialogFavorites();
   renderFavoriteToggle();
 }
 
@@ -3607,9 +3614,13 @@ const sameFavorite = (a: NewChatDefaults, b: NewChatDefaults) =>
   a.cwd === b.cwd &&
   a.permissionMode === b.permissionMode;
 
-function favoriteTitle(f: NewChatDefaults): string {
+function favoriteModelTitle(f: NewChatDefaults): string {
   const effort = f.effort ? ` (${f.effort})` : "";
-  return `${harnessById(f.harness).badge} · ${modelLabelFor(f.harness, f.model)}${effort}`;
+  return `${modelLabelFor(f.harness, f.model)}${effort}`;
+}
+
+function favoriteTitle(f: NewChatDefaults): string {
+  return `${harnessById(f.harness).badge} · ${favoriteModelTitle(f)}`;
 }
 
 function favoriteSub(f: NewChatDefaults): string {
@@ -3643,6 +3654,79 @@ function renderFavoriteToggle(): void {
   button.classList.toggle("favorited", saved);
   button.setAttribute("aria-pressed", String(saved));
   button.setAttribute("aria-label", saved ? "Remove favorite" : "Add favorite");
+  const current = unavailable ? null : dialogFavorite();
+  const rows = $("nc-favorites-list").children;
+  favorites.forEach((f, i) => {
+    rows[i]?.classList.toggle(
+      "active",
+      current !== null && sameFavorite(f, current),
+    );
+  });
+}
+
+function renderDialogFavorites(): void {
+  const section = $("nc-favorites");
+  show(section, favorites.length > 0);
+  section.classList.toggle("collapsed", favoritesCollapsed);
+  $("nc-favorites-toggle").setAttribute(
+    "aria-expanded",
+    String(!favoritesCollapsed),
+  );
+  $("nc-favorites-count").textContent = String(favorites.length);
+  const list = $("nc-favorites-list");
+  list.innerHTML = "";
+  for (const f of favorites) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "nc-favorite-row";
+    row.appendChild(
+      paintHarnessIcon(document.createElement("span"), f.harness),
+    );
+    const text = document.createElement("span");
+    text.className = "nc-favorite-row-text";
+    const title = document.createElement("span");
+    title.className = "nc-favorite-row-title";
+    title.textContent = favoriteModelTitle(f);
+    text.appendChild(title);
+    if (f.cwd) {
+      const sub = document.createElement("span");
+      sub.className = "nc-favorite-row-sub";
+      sub.textContent = f.cwd;
+      text.appendChild(sub);
+    }
+    row.appendChild(text);
+    row.addEventListener("click", () => applyFavoriteToDialog(f));
+    list.appendChild(row);
+  }
+}
+
+function toggleFavoritesCollapsed(): void {
+  favoritesCollapsed = !favoritesCollapsed;
+  renderDialogFavorites();
+  void api.saveFavoritesCollapsed(favoritesCollapsed).catch((err) => {
+    void api.logClient("ui", `could not save favorites collapsed: ${err}`);
+    toast("Favorites folded, but not saved");
+  });
+}
+
+// Fills the form the way a draft's frontmatter does: the favorite overlays the
+// remembered defaults for its harness so pi's async model reload keeps it.
+function applyFavoriteToDialog(f: NewChatDefaults): void {
+  hideError("newchat-error");
+  const harnessSelect = $<HTMLSelectElement>("nc-harness");
+  if (!Array.from(harnessSelect.options).some((o) => o.value === f.harness)) {
+    showError(
+      "newchat-error",
+      `${harnessById(f.harness).label} is not installed on this server`,
+      "This favorite cannot be used here.",
+    );
+    return;
+  }
+  harnessSelect.value = f.harness;
+  agentDefaults = { ...agentDefaults, [f.harness]: f };
+  activateHarnessOptions(f.harness, f);
+  $<HTMLInputElement>("nc-cwd").value = f.cwd;
+  renderFavoriteToggle();
 }
 
 let favoriteToggleInFlight = false;
@@ -5017,6 +5101,7 @@ function wireEvents(): void {
   $("nc-permission").addEventListener("change", renderFavoriteToggle);
   $("nc-cwd").addEventListener("input", renderFavoriteToggle);
   $("nc-cancel").addEventListener("click", closeNewChatModal);
+  $("nc-favorites-toggle").addEventListener("click", toggleFavoritesCollapsed);
   $("nc-favorite").addEventListener(
     "click",
     () => void toggleFavoriteFromDialog(),
@@ -5356,6 +5441,7 @@ async function main(): Promise<void> {
   applySendOnEnter();
   maintenanceMode = persisted.maintenanceMode;
   renderDrawerMaintenanceItems();
+  favoritesCollapsed = persisted.favoritesCollapsed;
   draftPromptsPath = persisted.draftPromptsPath;
   fillConnectForm(settings);
 

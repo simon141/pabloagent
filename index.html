@@ -687,6 +687,20 @@
     <div id="modal-newchat" class="modal" hidden>
       <div class="modal-sheet">
         <h2>New chat</h2>
+        <section id="nc-favorites" class="nc-favorites" hidden>
+          <button
+            id="nc-favorites-toggle"
+            type="button"
+            class="nc-favorites-header"
+            aria-expanded="true"
+            aria-controls="nc-favorites-list"
+          >
+            <span class="nc-favorites-chevron" aria-hidden="true">›</span>
+            <span class="nc-favorites-title">Favorites</span>
+            <span id="nc-favorites-count" class="nc-favorites-count"></span>
+          </button>
+          <div id="nc-favorites-list" class="nc-favorites-list"></div>
+        </section>
         <label id="nc-harness-row"
           >Agent CLI
           <select id="nc-harness"></select>
