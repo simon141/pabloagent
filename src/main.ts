@@ -4845,6 +4845,41 @@ async function openDiagnostics(): Promise<void> {
   };
 }
 
+async function removeServer(): Promise<void> {
+  const ok = await askConfirm(
+    "Remove this server?",
+    "The saved SSH details and the trusted host key are removed from this device.",
+    "Remove",
+  );
+  if (!ok) return;
+  try {
+    await api.clearSettings();
+  } catch (err) {
+    showError("sessions-error", "Could not remove the server", err);
+    return;
+  }
+  settings = null;
+  resetModelCatalogs();
+  // The 1.5s poll has been running behind this dialog; a reply still in
+  // flight would helpfully fill the emptied list back in.
+  sessionsGeneration += 1;
+  sessions = [];
+  // `clear_settings` writes a default state file, so the in-memory
+  // filters have to agree. Theme and maintenance mode are what it carries
+  // over, so those stay; read marks live in the sidecar on the server
+  // being removed.
+  transcriptFilters = {};
+  applyTranscriptFilters();
+  // The drafts path names a place on the server being removed, so it
+  // goes with the rest, the drafts themselves stay on that server.
+  draftPromptsPath = "";
+  resetChat();
+  renderChatSessionPill();
+  fillConnectForm(null);
+  goto("connect");
+  toast("Server removed");
+}
+
 async function handleDrawerAction(action: string): Promise<void> {
   show($("drawer"), false);
   switch (action) {
@@ -4863,41 +4898,6 @@ async function handleDrawerAction(action: string): Promise<void> {
     case "reconnect":
       if (settings) await doConnect(settings);
       break;
-    case "clear-ssh": {
-      const ok = await askConfirm(
-        "Forget this server?",
-        "The saved SSH details and the trusted host key are removed from this device.",
-        "Forget",
-      );
-      if (!ok) return;
-      try {
-        await api.clearSettings();
-      } catch (err) {
-        showError("sessions-error", "Could not forget the server", err);
-        return;
-      }
-      settings = null;
-      resetModelCatalogs();
-      // The 1.5s poll has been running behind this dialog; a reply still in
-      // flight would helpfully fill the emptied list back in.
-      sessionsGeneration += 1;
-      sessions = [];
-      // `clear_settings` writes a default state file, so the in-memory
-      // filters have to agree. Theme and maintenance mode are what it carries
-      // over, so those stay; read marks live in the sidecar on the server
-      // being forgotten.
-      transcriptFilters = {};
-      applyTranscriptFilters();
-      // The drafts path names a place on the server being forgotten, so it
-      // goes with the rest, the drafts themselves stay on that server.
-      draftPromptsPath = "";
-      resetChat();
-      renderChatSessionPill();
-      fillConnectForm(null);
-      goto("connect");
-      toast("SSH settings cleared");
-      break;
-    }
     default:
       break;
   }
@@ -5275,6 +5275,10 @@ function wireEvents(): void {
   $("preferences-close").addEventListener("click", () =>
     show($("modal-preferences"), false),
   );
+  $("preferences-remove-server").addEventListener("click", () => {
+    show($("modal-preferences"), false);
+    void removeServer();
+  });
   // Only the "system" theme follows the OS while the app is open.
   osPrefersLight.addEventListener("change", () => {
     if (theme === "system") applyTheme();

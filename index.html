@@ -391,9 +391,6 @@
           hidden
         >Diagnostics</button>
         <button type="button" data-action="reconnect" class="drawer-item">Reconnect</button>
-        <button type="button" data-action="clear-ssh" class="drawer-item">
-          SSH credentials
-        </button>
         <div class="drawer-meta" id="drawer-meta"></div>
         <a
           class="drawer-link"
@@ -568,6 +565,13 @@
             >
           </span>
         </label>
+        <button id="preferences-remove-server" type="button" class="ghost danger block">
+          Remove server
+        </button>
+        <span class="hint"
+          >Removes the saved SSH details and the trusted host key from this
+          device. Nothing on the server is changed.</span
+        >
         <div class="modal-actions">
           <button id="preferences-close" type="button" class="primary">Done</button>
         </div>
