@@ -20,7 +20,7 @@ interface Node {
 }
 
 const DEFAULT_HIDDEN: Partial<Record<Harness, readonly string[]>> = {
-  codex: ["reasoning", "metadata", "events"],
+  codex: ["reasoning", "metadata", "events", "token-usage"],
   claude: [
     "reasoning",
     "context",
@@ -151,6 +151,11 @@ const FILTERS: Record<Harness, HarnessFilters> = {
       PATCH("apply_patch calls."),
       OTHER_TOOLS("Web search, tool search, MCP servers, anything new."),
       {
+        id: "token-usage",
+        label: "Token usage",
+        hint: "Per-response, turn and thread token totals from recent Codex versions.",
+      },
+      {
         id: "context",
         label: "Injected context",
         hint: "AGENTS.md and the environment blocks sent as the first user turn.",
@@ -180,6 +185,7 @@ const FILTERS: Record<Harness, HarnessFilters> = {
         return "thought-encrypted";
       }
       if (origin === "reasoning") return "reasoning";
+      if (origin === "token_usage_record") return "token-usage";
       if (origin.startsWith("event/")) return "events";
       if (origin === "developer" || origin === "system") return "instructions";
       if (origin === "injected context") return "context";

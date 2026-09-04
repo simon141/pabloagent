@@ -78,6 +78,7 @@ function metaLabel(kind: string, p: Record<string, unknown>): string {
     )}`;
   }
   if (kind === "world_state") return "Workspace state";
+  if (kind === "token_usage_record") return "Token usage";
   if (!META_ENTRIES.has(kind)) return `Rollout entry — ${kind}`;
   return kind;
 }

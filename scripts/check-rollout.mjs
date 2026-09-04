@@ -67,7 +67,7 @@ execFileSync(
   { stdio: ["ignore", "inherit", "inherit"] },
 );
 const filtersLoaded = await import(filtersBundle);
-const { categoriesOf, filtersFor, isHidden } =
+const { categoriesOf, defaultHidden, filtersFor, isHidden } =
   filtersLoaded.default ?? filtersLoaded;
 
 const piBundle = join(work, "pi-rollout.cjs");
@@ -281,6 +281,29 @@ check(
     dualLimitFacts.rateLimits.secondary?.windowMinutes === 10080,
   "both Codex rate-limit windows are retained when the rollout reports them",
   JSON.stringify(dualLimitFacts.rateLimits),
+);
+
+const codexTokenUsage = renderSession(
+  "codex",
+  parseSessionLines(
+    JSON.stringify({
+      type: "token_usage_record",
+      payload: {
+        usage: { total_tokens: 100 },
+        turn_token_usage: { total_tokens: 100 },
+        thread_token_usage: { total_tokens: 100 },
+      },
+    }),
+  ),
+  "s",
+).find((item) => item.type === "contextEntry");
+check(
+  codexTokenUsage?.origin === "token_usage_record" &&
+    codexTokenUsage.label === "Token usage" &&
+    filtersFor("codex").some((filter) => filter.id === "token-usage") &&
+    isHidden("codex", defaultHidden("codex"), codexTokenUsage),
+  "Codex token usage records are hidden by default",
+  JSON.stringify(codexTokenUsage),
 );
 
 // ===========================================================================
