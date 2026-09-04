@@ -2675,18 +2675,15 @@ button {
   word-break: break-word;
   max-height: 45vh;
   overflow: auto;
-  cursor: pointer;
 }
 /* The same panel saying something milder. Red and monospace would put a failed
- * poll on the same footing as a refresh that failed with a reason, and there is
- * nothing underneath to copy. */
+ * poll on the same footing as a refresh that failed with a reason. */
 .error-panel.notice {
   background: var(--badge-bg);
   border-color: var(--line);
   color: var(--muted);
   font-family: inherit;
   font-size: 13px;
-  cursor: default;
 }
 
 .toast {

@@ -522,25 +522,17 @@ function handleLayerKeys(e: KeyboardEvent): void {
 function showError(panelId: string, title: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
   const panel = $(panelId);
-  const full = `${title}\n\n${message}`;
   // The panel is shared with `showNotice`, which leaves its own class behind.
   panel.classList.remove("notice");
-  panel.textContent = `${full}\n\n(tap to copy)`;
+  panel.textContent = `${title}\n\n${message}`;
   show(panel, true);
   void api.logClient("ui", `${title}: ${message}`);
-  panel.onclick = () => {
-    void writeText(full).then(
-      () => toast("Copied error"),
-      () => toast("Copy failed"),
-    );
-  };
 }
 
 function showNotice(panelId: string, text: string): void {
   const panel = $(panelId);
   panel.classList.add("notice");
   panel.textContent = text;
-  panel.onclick = null;
   show(panel, true);
 }
 
@@ -4837,12 +4829,6 @@ async function openDiagnostics(): Promise<void> {
   body.textContent = lines.join("\n");
   show($("modal-diagnostics"), true);
   body.scrollTop = body.scrollHeight;
-  body.onclick = () => {
-    void writeText(lines.join("\n")).then(
-      () => toast("Diagnostics copied"),
-      () => toast("Copy failed"),
-    );
-  };
 }
 
 async function removeServer(): Promise<void> {
