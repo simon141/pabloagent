@@ -390,10 +390,10 @@ textarea {
 }
 
 .hero {
-  padding: 24px 4px 8px;
+  padding: 8px 4px 8px;
 }
-#screen-connect .hero {
-  margin-top: 24px;
+#screen-connect .scroll-body {
+  padding-top: calc(16px + var(--inset-top));
 }
 .hero h1 {
   margin: 0 0 6px;
