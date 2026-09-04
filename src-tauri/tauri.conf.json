@@ -26,6 +26,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "homepage": "https://github.com/simon141/pabloagent",
+    "license": "MIT",
+    "category": "DeveloperTool",
+    "shortDescription": "Chat client for Codex, Claude Code, opencode and pi over SSH",
+    "longDescription": "Pablo Agent runs AI coding agents on a remote Linux host over SSH and renders their native session records in one chat UI. It does not install a server daemon.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -38,6 +43,9 @@
         "files": {
           "/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitGPUProcess": "/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitGPUProcess"
         }
+      },
+      "deb": {
+        "section": "devel"
       }
     }
   }

@@ -74,6 +74,21 @@ they install beside the released app. Only the GitHub release workflow builds
 the bare `app.pabloagent`, by setting `ORG_GRADLE_PROJECT_githubApk=true`.
 Verify every APK with `scripts/verify-apk.sh`, which checks the id.
 
+Linux ships a loose binary, an AppImage, a `.deb` and an `.rpm` from one
+`tauri build --bundles appimage,deb,rpm`, for x86_64 and arm64. Only the
+AppImage bundles `WebKitGPUProcess`; the packages depend on the distribution's
+WebKitGTK 4.1. The arm64 job passes `--config src-tauri/appimage-aarch64.conf.json`,
+whose `null` entry removes the x86_64 `WebKitGPUProcess` path before adding the
+aarch64 one. Verify every package pair with `scripts/verify-linux-packages.sh`,
+which checks the `pablo-agent` package name, the version, the WebKitGTK
+dependency and the installed files.
+
+macOS ships one universal `.dmg` from
+`tauri build --target universal-apple-darwin --bundles dmg`. Without the
+`APPLE_*` secrets the workflow signs ad hoc (`APPLE_SIGNING_IDENTITY=-`), so the
+app only runs after Open Anyway in Privacy & Security. Adding the secrets makes
+the same job sign and notarize.
+
 Build the portable Windows executable and the NSIS installer with `makensis`
 on `PATH`:
 

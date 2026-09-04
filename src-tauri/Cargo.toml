@@ -1,7 +1,7 @@
 [package]
 name = "pabloagent"
 version = "1.0.0"
-description = "Pablo Agent, Codex chat client over SSH"
+description = "Pablo Agent, chat client for Codex, Claude Code, opencode and pi over SSH"
 authors = ["simon141"]
 edition = "2021"
 

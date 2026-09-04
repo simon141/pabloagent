@@ -1,0 +1,12 @@
+{
+  "bundle": {
+    "linux": {
+      "appimage": {
+        "files": {
+          "/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitGPUProcess": null,
+          "/usr/lib/aarch64-linux-gnu/webkit2gtk-4.1/WebKitGPUProcess": "/usr/lib/aarch64-linux-gnu/webkit2gtk-4.1/WebKitGPUProcess"
+        }
+      }
+    }
+  }
+}

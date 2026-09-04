@@ -23,11 +23,34 @@ Latest build from `main`:
 - [Android arm64 APK](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-android-arm64.apk)
 - [Windows x86_64 portable executable](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-windows-portable.exe)
 - [Windows x86_64 installer](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-windows-setup.exe)
+- [macOS universal disk image](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-macos-universal.dmg)
 - [Linux x86_64 binary](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-linux-x86_64)
 - [Linux x86_64 AppImage](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-linux-x86_64.AppImage)
+- [Linux x86_64 Debian package](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-linux-x86_64.deb)
+- [Linux x86_64 RPM package](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-linux-x86_64.rpm)
+- [Linux arm64 binary](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-linux-aarch64)
+- [Linux arm64 AppImage](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-linux-aarch64.AppImage)
+- [Linux arm64 Debian package](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-linux-aarch64.deb)
+- [Linux arm64 RPM package](https://github.com/simon141/pabloagent/releases/download/continuous/pabloagent-linux-aarch64.rpm)
 
 The portable Windows executable keeps its `pabloagent.json` next to the
 executable. The Windows installer keeps it in the user's app data directory.
+
+The macOS build is not notarized. After the first launch is blocked, allow it
+under System Settings > Privacy & Security > Open Anyway.
+
+The Debian and RPM packages install as `pablo-agent` and need the
+distribution's WebKitGTK 4.1, which Ubuntu 22.04, Debian 12, Fedora and
+openSUSE provide:
+
+```bash
+sudo apt install ./pabloagent-linux-x86_64.deb
+sudo dnf install ./pabloagent-linux-x86_64.rpm
+```
+
+Continuous builds keep the same version number, so reinstalling a newer
+continuous package over an installed one needs `apt install --reinstall` or
+`dnf reinstall`.
 
 ## Server requirements
 
@@ -158,9 +181,27 @@ The exact APK filename can vary with the Tauri Android tooling. If the path
 above does not exist, use the release APK under
 `src-tauri/gen/android/app/build/outputs/apk/`.
 
+### Linux packages and macOS build
+
+On Linux, one build produces the AppImage and the Debian and RPM packages:
+
+```bash
+npm run tauri build -- --bundles appimage,deb,rpm
+scripts/verify-linux-packages.sh src-tauri/target/release/bundle/deb/*.deb \
+  src-tauri/target/release/bundle/rpm/*.rpm
+```
+
+On macOS, with both Apple targets installed via `rustup target add
+aarch64-apple-darwin x86_64-apple-darwin`:
+
+```bash
+npm run tauri build -- --target universal-apple-darwin --bundles dmg
+```
+
 ### GitHub builds
 
-Each push to `main` publishes Android, Linux, and Windows release builds to the
+Each push to `main` publishes Android, Linux (x86_64 and arm64), macOS, and
+Windows release builds to the
 [continuous prerelease](https://github.com/simon141/pabloagent/releases/tag/continuous).
 Pull requests receive a comment with temporary artifact links.
 

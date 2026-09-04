@@ -97,8 +97,23 @@ jobs:
           retention-days: 14
 
   linux:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 40
+    name: linux ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-22.04
+            elf: x86-64
+            triplet: x86_64-linux-gnu
+            config: ""
+          - arch: aarch64
+            runner: ubuntu-22.04-arm
+            elf: ARM aarch64
+            triplet: aarch64-linux-gnu
+            config: --config src-tauri/appimage-aarch64.conf.json
 
     steps:
       - uses: actions/checkout@v5
@@ -116,41 +131,132 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          key: ${{ matrix.arch }}
 
-      - name: Install Tauri and AppImage dependencies
+      - name: Install Tauri, AppImage and package tooling
         timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev \
-            libxdo-dev libayatana-appindicator3-dev patchelf
+            libxdo-dev libayatana-appindicator3-dev patchelf rpm
 
       - run: npm ci
 
-      - name: Build the release AppImage
-        run: npm run tauri build -- --bundles appimage
+      - name: Build the AppImage, Debian and RPM packages
+        run: npm run tauri build -- --bundles appimage,deb,rpm ${{ matrix.config }}
 
       - name: Verify and package Linux outputs
         run: |
-          file src-tauri/target/release/pabloagent | grep -F 'ELF 64-bit'
+          file src-tauri/target/release/pabloagent | grep -F 'ELF 64-bit' | grep -F '${{ matrix.elf }}'
           appimage=$(find src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -1)
           appimage=$(realpath "$appimage")
+          deb=$(find src-tauri/target/release/bundle/deb -name '*.deb' | head -1)
+          rpm=$(find src-tauri/target/release/bundle/rpm -name '*.rpm' | head -1)
+          scripts/verify-linux-packages.sh "$deb" "$rpm"
           mkdir -p "$RUNNER_TEMP/appimage-check" "$RUNNER_TEMP/release-assets"
           cd "$RUNNER_TEMP/appimage-check"
           "$appimage" --appimage-extract \
-            'usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitGPUProcess'
-          test -x squashfs-root/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitGPUProcess
-          install -m 755 "$GITHUB_WORKSPACE/src-tauri/target/release/pabloagent" \
-            "$RUNNER_TEMP/release-assets/pabloagent-linux-x86_64"
-          install -m 755 "$appimage" \
-            "$RUNNER_TEMP/release-assets/pabloagent-linux-x86_64.AppImage"
+            'usr/lib/${{ matrix.triplet }}/webkit2gtk-4.1/WebKitGPUProcess'
+          test -x squashfs-root/usr/lib/${{ matrix.triplet }}/webkit2gtk-4.1/WebKitGPUProcess
+          asset="$RUNNER_TEMP/release-assets/pabloagent-linux-${{ matrix.arch }}"
+          install -m 755 "$GITHUB_WORKSPACE/src-tauri/target/release/pabloagent" "$asset"
+          install -m 755 "$appimage" "$asset.AppImage"
+          install -m 644 "$GITHUB_WORKSPACE/$deb" "$asset.deb"
+          install -m 644 "$GITHUB_WORKSPACE/$rpm" "$asset.rpm"
+
+      - name: Install the packages in clean containers
+        run: |
+          docker run --rm -e DEBIAN_FRONTEND=noninteractive \
+            -v "$RUNNER_TEMP/release-assets:/pkgs:ro" debian:bookworm bash -euxc '
+            apt-get update -qq
+            apt-get install -y -qq /pkgs/pabloagent-linux-${{ matrix.arch }}.deb
+            dpkg -s pablo-agent | grep -F "Status: install ok installed"
+            if ldd /usr/bin/pabloagent | grep -F "not found"; then exit 1; fi'
+          docker run --rm -v "$RUNNER_TEMP/release-assets:/pkgs:ro" fedora:latest bash -euxc '
+            dnf install -y -q /pkgs/pabloagent-linux-${{ matrix.arch }}.rpm
+            rpm -q pablo-agent
+            if ldd /usr/bin/pabloagent | grep -F "not found"; then exit 1; fi'
 
       - uses: actions/upload-artifact@v4
         with:
-          name: pablo-linux-x86_64
+          name: pablo-linux-${{ matrix.arch }}
           path: |
-            ${{ runner.temp }}/release-assets/pabloagent-linux-x86_64
-            ${{ runner.temp }}/release-assets/pabloagent-linux-x86_64.AppImage
+            ${{ runner.temp }}/release-assets/pabloagent-linux-${{ matrix.arch }}
+            ${{ runner.temp }}/release-assets/pabloagent-linux-${{ matrix.arch }}.AppImage
+            ${{ runner.temp }}/release-assets/pabloagent-linux-${{ matrix.arch }}.deb
+            ${{ runner.temp }}/release-assets/pabloagent-linux-${{ matrix.arch }}.rpm
+          if-no-files-found: error
+          retention-days: 14
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Rust with both Apple targets
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: universal-apple-darwin
+
+      - name: Configure code signing
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+                      APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!name}" ] || continue
+            { echo "$name<<PABLO_EOF"; echo "${!name}"; echo "PABLO_EOF"; } >> "$GITHUB_ENV"
+          done
+
+      - run: npm ci
+
+      - name: Build the universal app and disk image
+        run: npm run tauri build -- --target universal-apple-darwin --bundles dmg
+
+      - name: Verify and package the macOS outputs
+        run: |
+          bundle=src-tauri/target/universal-apple-darwin/release/bundle
+          app=$(find "$bundle/macos" -maxdepth 1 -name '*.app' | head -1)
+          dmg=$(find "$bundle/dmg" -name '*.dmg' | head -1)
+          test -n "$app" && test -n "$dmg"
+          archs=$(lipo -archs "$app/Contents/MacOS/pabloagent")
+          case "$archs" in
+            *x86_64*arm64*|*arm64*x86_64*) ;;
+            *) echo "Expected a universal binary, got: $archs"; exit 1 ;;
+          esac
+          codesign --verify --deep --strict "$app"
+          hdiutil imageinfo "$dmg" > /dev/null
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          cp "$dmg" "$RUNNER_TEMP/release-assets/pabloagent-macos-universal.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pablo-macos-universal
+          path: ${{ runner.temp }}/release-assets/pabloagent-macos-universal.dmg
           if-no-files-found: error
           retention-days: 14
 
@@ -216,7 +322,7 @@ jobs:
 
   publish:
     if: github.event_name == 'push'
-    needs: [checks, android, linux, windows]
+    needs: [checks, android, linux, macos, windows]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
