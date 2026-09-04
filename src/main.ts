@@ -3703,6 +3703,7 @@ function renderDialogFavorites(): void {
 function toggleFavoritesCollapsed(): void {
   favoritesCollapsed = !favoritesCollapsed;
   renderDialogFavorites();
+  renderFavoriteToggle();
   void api.saveFavoritesCollapsed(favoritesCollapsed).catch((err) => {
     void api.logClient("ui", `could not save favorites collapsed: ${err}`);
     toast("Favorites folded, but not saved");
