@@ -970,13 +970,13 @@ async function refreshSessionsNow(full: boolean): Promise<void> {
     if (generation !== sessionsGeneration) return;
     if (list.favorites) setFavorites(list.favorites);
     // A background poll updates what the rows say, never where they sit, a
-    // list re-sorted every 1.5s shuffles under the reader's finger. The order
+    // list re-sorted every 3s shuffles under the reader's finger. The order
     // changes only on a full refresh.
     sessions = full ? fresh : inCurrentOrder(fresh);
     renderSessionList();
     renderChatSessionPill();
     // Cleared here rather than before the attempt, or the panel flashes every
-    // 1.5s while the server is unreachable.
+    // 3s while the server is unreachable.
     hideError("sessions-error");
   } catch (err) {
     if (generation !== sessionsGeneration) return;
@@ -1115,7 +1115,7 @@ function sessionSubtitle(
 }
 
 // Where a hardware keyboard is standing in the list, held as the session's own
-// key rather than a row or an index: the poll rebuilds every row every 1.5s.
+// key rather than a row or an index: the poll rebuilds every row every 3s.
 const sessionKey = (s: SessionSummary) => `${s.harness}:${s.id}`;
 
 let selectedSessionKey: string | null = null;
@@ -4860,7 +4860,7 @@ async function removeServer(): Promise<void> {
   }
   settings = null;
   resetModelCatalogs();
-  // The 1.5s poll has been running behind this dialog; a reply still in
+  // The 3s poll has been running behind this dialog; a reply still in
   // flight would helpfully fill the emptied list back in.
   sessionsGeneration += 1;
   sessions = [];
@@ -5354,7 +5354,7 @@ async function main(): Promise<void> {
   // switching away from a chat or rebuilding the webview.
   window.setInterval(() => {
     if (isScreen("sessions")) void refreshSessions();
-  }, 1_500);
+  }, 3_000);
 
   window.addEventListener("unhandledrejection", (e) => {
     void api.logClient("unhandled", String(e.reason));
