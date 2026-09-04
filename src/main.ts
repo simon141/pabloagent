@@ -2298,14 +2298,6 @@ async function sendPrompt(text: string): Promise<boolean> {
     all: new Set(rendered.keys()),
     delivery: "pending",
   });
-  // No ticks yet: the bubble exists, nothing has been sent.
-  transcript.upsert({
-    type: "userMessage",
-    id: echoId,
-    content: [{ type: "text", text }],
-    delivery: "pending",
-  } as ThreadItem);
-  transcript.scrollToBottom(true);
 
   const generation = chatGeneration;
   const newSession = chat.threadId === null;
@@ -2330,11 +2322,11 @@ async function sendPrompt(text: string): Promise<boolean> {
       newSessionNotice?.remove();
       newSessionNotice = null;
     }
-    // One grey tick: the harness command is running on the server. Guarded on
-    // still being `pending`, a poll can already have marked the echo answered,
-    // and this must not walk that back. The later states live in
-    // `applyRollout`: two grey when the file confirms the prompt, two green
-    // when anything follows it.
+    // The bubble appears only now, with one grey tick: the harness command is
+    // running on the server. Guarded on still being `pending`, a poll can
+    // already have marked the echo answered, and this must not walk that back.
+    // The later states live in `applyRollout`: two grey when the file confirms
+    // the prompt, two green when anything follows it.
     const echo = localEchoes.get(echoId);
     if (echo && echo.delivery === "pending") {
       echo.delivery = "sent";
@@ -2344,6 +2336,7 @@ async function sendPrompt(text: string): Promise<boolean> {
         content: [{ type: "text", text }],
         delivery: "sent",
       } as ThreadItem);
+      transcript.scrollToBottom(true);
     }
     // opencode's live feed is the turn's *own* event stream, a fresh file per
     // turn, not the session file the history came from, so its cursor starts
