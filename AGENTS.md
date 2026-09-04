@@ -84,7 +84,7 @@ which checks the `pablo-agent` package name, the version, the WebKitGTK
 dependency and the installed files.
 
 macOS ships one universal `.dmg` from
-`tauri build --target universal-apple-darwin --bundles dmg`. Without the
+`tauri build --target universal-apple-darwin --bundles app,dmg`. Without the
 `APPLE_*` secrets the workflow signs ad hoc (`APPLE_SIGNING_IDENTITY=-`), so the
 app only runs after Open Anyway in Privacy & Security. Adding the secrets makes
 the same job sign and notarize.

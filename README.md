@@ -195,7 +195,7 @@ On macOS, with both Apple targets installed via `rustup target add
 aarch64-apple-darwin x86_64-apple-darwin`:
 
 ```bash
-npm run tauri build -- --target universal-apple-darwin --bundles dmg
+npm run tauri build -- --target universal-apple-darwin --bundles app,dmg
 ```
 
 ### GitHub builds
