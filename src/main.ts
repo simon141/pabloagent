@@ -1380,8 +1380,6 @@ interface PopupAction {
   danger?: boolean;
 
   disabled?: boolean;
-  sub?: string;
-  hold?: (at: MenuAnchor) => void;
 }
 
 function openPopupMenu(actions: PopupAction[], at?: MenuAnchor): void {
@@ -1402,18 +1400,7 @@ function openPopupMenu(actions: PopupAction[], at?: MenuAnchor): void {
       ? "bubble-menu-item danger"
       : "bubble-menu-item";
     button.setAttribute("role", "menuitem");
-    if (action.sub) {
-      const title = document.createElement("span");
-      title.textContent = action.label;
-      const sub = document.createElement("span");
-      sub.className = "bubble-menu-sub";
-      sub.textContent = action.sub;
-      button.append(title, sub);
-    } else {
-      button.textContent = action.label;
-    }
-    // Before the tap handler, so a completed hold swallows the release click.
-    if (action.hold) attachHoldMenu(button, action.hold);
+    button.textContent = action.label;
     if (action.disabled) {
       button.disabled = true;
     } else {
@@ -3602,7 +3589,6 @@ function setFavorites(list: NewChatDefaults[]): void {
       })
     );
   });
-  show($("sessions-favorites"), favorites.length > 0);
   renderDialogFavorites();
   renderFavoriteToggle();
 }
@@ -3763,47 +3749,6 @@ async function toggleFavoriteFromDialog(): Promise<void> {
   } finally {
     favoriteToggleInFlight = false;
   }
-}
-
-function openFavoritesMenu(at?: MenuAnchor): void {
-  openPopupMenu(
-    favorites.map((f) => ({
-      label: favoriteTitle(f),
-      sub: favoriteSub(f),
-      run: () => startFavoriteChat(f),
-      hold: (holdAt: MenuAnchor) =>
-        openPopupMenu(
-          [
-            {
-              label: "Delete favorite",
-              danger: true,
-              run: () => void deleteFavorite(f),
-            },
-          ],
-          holdAt,
-        ),
-    })),
-    at,
-  );
-}
-
-async function deleteFavorite(f: NewChatDefaults): Promise<void> {
-  try {
-    setFavorites(await api.deleteFavorite(f));
-    toast("Favorite deleted");
-  } catch (err) {
-    toast(`Could not delete the favorite: ${String(err)}`);
-  }
-}
-
-// The same landing as Create, minus the dialog: waiting shared, forwarded or
-// draft text is spent into the new chat here too.
-function startFavoriteChat(f: NewChatDefaults): void {
-  chatGeneration += 1;
-  enterNewChat(f.harness, f.model, f.effort, f.cwd, f.permissionMode);
-  consumePendingShare();
-  consumePendingForward();
-  consumePendingDraft();
 }
 
 // Reached by holding a card's header: what the card was rendered from.
@@ -5069,10 +5014,6 @@ function wireEvents(): void {
     })();
   });
   $("sessions-menu").addEventListener("click", () => void openDrawer());
-  $("sessions-favorites").addEventListener("click", () => {
-    const rect = $("sessions-favorites").getBoundingClientRect();
-    openFavoritesMenu({ x: rect.left, y: rect.bottom + 4 });
-  });
   // Waiting text is only ever spent by opening a chat, so without this a share
   // cannot be abandoned short of sending it somewhere.
   $("share-notice-dismiss").addEventListener("click", discardPendingShare);
