@@ -295,7 +295,13 @@ pub fn clear_finished_notification(app: &AppHandle) {
         tauri::async_runtime::spawn_blocking(move || {
             let state = app.state::<AppState>();
             let _tray = state.watch.tray.lock().unwrap();
-            if let Err(err) = app.notification().remove_all_active() {
+            // Never `remove_all_active`: tauri-plugin-notification 2.3.3 sends
+            // it with a null payload, which the Android plugin dereferences as
+            // `RemoveActiveArgs.getNotifications()` and throws.
+            if let Err(err) = app
+                .notification()
+                .remove_active(vec![TURN_FINISHED_NOTIFICATION_ID])
+            {
                 state
                     .diagnostics
                     .push("watch", format!("could not clear notifications: {err}"));
