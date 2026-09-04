@@ -2172,7 +2172,7 @@ button {
 }
 .send-btn {
   flex: 0 0 auto;
-  width: 50px;
+  width: 46px;
   min-height: 46px;
   align-self: stretch;
   border: none;
