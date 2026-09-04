@@ -3435,7 +3435,10 @@ function renderNewChatPending(): void {
 async function openNewChatModal(cancelForward = false): Promise<void> {
   clearForwardOnNewChatCancel = cancelForward;
   hideError("newchat-error");
-  show($("modal-newchat"), true);
+  const modal = $("modal-newchat");
+  show(modal, true);
+  const sheet = modal.querySelector<HTMLElement>(".modal-sheet");
+  if (sheet) sheet.scrollTop = 0;
   $("nc-create").textContent =
     pendingForwardPrompt && !pendingForwardToComposer
       ? "Create & send"
