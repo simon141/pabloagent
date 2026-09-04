@@ -39,9 +39,9 @@ field Depends | grep -qF libwebkit2gtk-4.1-0 || {
 
 # Tauri writes tar members without a ./ prefix, so match the bare path.
 contents=$(dpkg-deb -c "$DEB")
-echo "$contents" | grep -q 'usr/bin/pabloagent$' || { echo "FAIL: deb lacks usr/bin/pabloagent."; exit 1; }
+echo "$contents" | grep -q 'usr/bin/pablo$' || { echo "FAIL: deb lacks usr/bin/pablo."; exit 1; }
 echo "$contents" | grep -q 'usr/share/applications/.*\.desktop$' || { echo "FAIL: deb lacks a .desktop file."; exit 1; }
-echo "$contents" | grep -q 'usr/share/icons/hicolor/128x128/apps/pabloagent.png$' || { echo "FAIL: deb lacks the 128x128 icon."; exit 1; }
+echo "$contents" | grep -q 'usr/share/icons/hicolor/128x128/apps/pablo.png$' || { echo "FAIL: deb lacks the 128x128 icon."; exit 1; }
 
 read -r name rpm_version release rpm_arch license <<<"$(rpm -qp --qf '%{NAME} %{VERSION} %{RELEASE} %{ARCH} %{LICENSE}\n' "$RPM")"
 [ "$name" = pablo-agent ] || { echo "FAIL: rpm Name is $name, expected pablo-agent."; exit 1; }
@@ -59,7 +59,7 @@ rpm -qpR "$RPM" | grep -qF 'libwebkit2gtk-4.1.so.0()(64bit)' || {
 }
 
 files=$(rpm -qpl "$RPM")
-echo "$files" | grep -qx /usr/bin/pabloagent || { echo "FAIL: rpm lacks /usr/bin/pabloagent."; exit 1; }
+echo "$files" | grep -qx /usr/bin/pablo || { echo "FAIL: rpm lacks /usr/bin/pablo."; exit 1; }
 echo "$files" | grep -q '^/usr/share/applications/.*\.desktop$' || { echo "FAIL: rpm lacks a .desktop file."; exit 1; }
 
 echo "OK: $package $deb_version ($deb_arch), $name $rpm_version-$release ($rpm_arch), license $license."

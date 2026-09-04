@@ -148,7 +148,7 @@ jobs:
 
       - name: Verify and package Linux outputs
         run: |
-          file src-tauri/target/release/pabloagent | grep -F 'ELF 64-bit' | grep -F '${{ matrix.elf }}'
+          file src-tauri/target/release/pablo | grep -F 'ELF 64-bit' | grep -F '${{ matrix.elf }}'
           appimage=$(find src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -1)
           appimage=$(realpath "$appimage")
           deb=$(find src-tauri/target/release/bundle/deb -name '*.deb' | head -1)
@@ -160,7 +160,7 @@ jobs:
             'usr/lib/${{ matrix.triplet }}/webkit2gtk-4.1/WebKitGPUProcess'
           test -x squashfs-root/usr/lib/${{ matrix.triplet }}/webkit2gtk-4.1/WebKitGPUProcess
           asset="$RUNNER_TEMP/release-assets/pabloagent-linux-${{ matrix.arch }}"
-          install -m 755 "$GITHUB_WORKSPACE/src-tauri/target/release/pabloagent" "$asset"
+          install -m 755 "$GITHUB_WORKSPACE/src-tauri/target/release/pablo" "$asset"
           install -m 755 "$appimage" "$asset.AppImage"
           install -m 644 "$GITHUB_WORKSPACE/$deb" "$asset.deb"
           install -m 644 "$GITHUB_WORKSPACE/$rpm" "$asset.rpm"
@@ -172,11 +172,11 @@ jobs:
             apt-get update -qq
             apt-get install -y -qq /pkgs/pabloagent-linux-${{ matrix.arch }}.deb
             dpkg -s pablo-agent | grep -F "Status: install ok installed"
-            if ldd /usr/bin/pabloagent | grep -F "not found"; then exit 1; fi'
+            if ldd /usr/bin/pablo | grep -F "not found"; then exit 1; fi'
           docker run --rm -v "$RUNNER_TEMP/release-assets:/pkgs:ro" fedora:latest bash -euxc '
             dnf install -y -q /pkgs/pabloagent-linux-${{ matrix.arch }}.rpm
             rpm -q pablo-agent
-            if ldd /usr/bin/pabloagent | grep -F "not found"; then exit 1; fi'
+            if ldd /usr/bin/pablo | grep -F "not found"; then exit 1; fi'
 
       - uses: actions/upload-artifact@v4
         with:
@@ -244,7 +244,7 @@ jobs:
           dmg=$(find "$bundle/dmg" -name '*.dmg' | head -1)
           test -n "$app"
           test -n "$dmg"
-          archs=$(lipo -archs "$app/Contents/MacOS/pabloagent")
+          archs=$(lipo -archs "$app/Contents/MacOS/pablo")
           case "$archs" in
             *x86_64*arm64*|*arm64*x86_64*) ;;
             *) echo "Expected a universal binary, got: $archs"; exit 1 ;;
@@ -300,14 +300,14 @@ jobs:
 
       - name: Verify and package the Windows outputs
         run: |
-          executable=src-tauri/target/x86_64-pc-windows-msvc/release/pabloagent.exe
+          executable=src-tauri/target/x86_64-pc-windows-msvc/release/pablo.exe
           installer=$(find src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis -name '*-setup.exe' | head -1)
           test -n "$installer"
           file "$executable" | grep -F 'PE32+ executable'
           file "$installer" | grep -F 'PE32 executable'
           grep -q -a -F NullsoftInst "$installer"
           grep -q -a -F __TAURI_BUNDLE_TYPE_VAR_UNK "$executable"
-          7z e -so "$installer" pabloagent.exe | grep -q -a -F __TAURI_BUNDLE_TYPE_VAR_NSS
+          7z e -so "$installer" pablo.exe | grep -q -a -F __TAURI_BUNDLE_TYPE_VAR_NSS
           mkdir -p "$RUNNER_TEMP/release-assets"
           cp "$executable" "$RUNNER_TEMP/release-assets/pabloagent-windows-portable.exe"
           cp "$installer" "$RUNNER_TEMP/release-assets/pabloagent-windows-setup.exe"

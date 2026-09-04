@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn a_portable_build_keeps_its_state_beside_the_executable() {
-        let exe = Path::new("/apps/pablo/pabloagent.exe");
+        let exe = Path::new("/apps/pablo/pablo.exe");
         assert_eq!(portable_dir(exe).unwrap(), Path::new("/apps/pablo"));
         assert!(portable_dir(Path::new("/")).is_err());
     }

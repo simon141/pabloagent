@@ -98,7 +98,7 @@ npm run tauri -- build --runner cargo-xwin \
 ```
 
 The executable is
-`src-tauri/target/x86_64-pc-windows-msvc/release/pabloagent.exe` and the
+`src-tauri/target/x86_64-pc-windows-msvc/release/pablo.exe` and the
 installer is the `*-setup.exe` under
 `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/`. Pass
 `--no-bundle` instead of `--bundles nsis` to skip the installer.
