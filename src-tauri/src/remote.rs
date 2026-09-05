@@ -1601,26 +1601,38 @@ pub fn delete_session_command(
     harness: Harness,
     path: &str,
     thread_id: &str,
+    opencode_bin: &str,
 ) -> Result<String, String> {
-    if harness == Harness::Opencode {
-        return Err(
-            "opencode sessions live in opencode's own database, so this app cannot delete them"
-                .to_string(),
-        );
-    }
     let path = path.trim();
     if !path.starts_with('/') || !path.ends_with(".jsonl") {
         return Err(format!("'{path}' does not name a session file"));
     }
+    let opencode_id = if harness == Harness::Opencode {
+        let sid = id_from_path(path);
+        if sid.is_empty() || !sid.starts_with("ses_") {
+            return Err(format!(
+                "'{path}' does not name an opencode session — expected …/ses_<id>.jsonl"
+            ));
+        }
+        Some(sid)
+    } else {
+        None
+    };
+    let thread_id = opencode_id.as_deref().unwrap_or(thread_id);
     let file = quote(path);
     let mut cmd = session_busy_guard(harness, thread_id, path)?;
+    if let Some(sid) = &opencode_id {
+        cmd.push_str(&opencode_delete_command(opencode_bin, sid));
+    }
     // Every removal exits on failure, or the last one supplies the script's
     // exit status and a delete that removed nothing reads as success.
     cmd.push_str(&format!("rm -f -- {file} || exit 1"));
-    cmd.push_str(&format!(
-        "\nrm -f -- {} || exit 1",
-        quote(&format!("{path}.rewind-bak"))
-    ));
+    if harness != Harness::Opencode {
+        cmd.push_str(&format!(
+            "\nrm -f -- {} || exit 1",
+            quote(&format!("{path}.rewind-bak"))
+        ));
+    }
     if harness == Harness::Claude {
         let dir = path.strip_suffix(".jsonl").expect("checked above");
         cmd.push_str(&format!("\nrm -rf -- {} || exit 1", quote(dir)));
@@ -1643,6 +1655,27 @@ pub fn delete_session_command(
          fi"
     ));
     Ok(cmd)
+}
+
+/// `opencode session delete` takes the row, its messages and its child
+/// sessions, and exits non-zero for an id it does not have. Its `remove` logs
+/// and swallows failures, so the row is counted afterwards rather than
+/// trusting the exit status alone. The file Pablo deletes after this is only
+/// its own render of the row.
+fn opencode_delete_command(opencode_bin: &str, sid: &str) -> String {
+    let bin = quote(opencode_bin);
+    let sql = quote(&format!(
+        "SELECT count(*) AS n FROM session WHERE id='{sid}'"
+    ));
+    format!(
+        "bash -lc 'exec \"$0\" session delete \"$1\"' {bin} '{sid}' || exit 1\n\
+         out=$(bash -lc 'exec \"$0\" db \"$1\" --format tsv' {bin} {sql}) || exit 1\n\
+         n=$(printf '%s\\n' \"$out\" | tail -n +2)\n\
+         if [ \"$n\" != 0 ]; then\n\
+         \tprintf 'the server still has session %s after deleting it\\n' '{sid}' >&2\n\
+         \texit 1\n\
+         fi\n"
+    )
 }
 
 pub fn rewind_session_command(
@@ -1870,7 +1903,12 @@ mod tests {
 
     #[test]
     fn delete_removes_what_each_harness_wrote() {
-        let codex = delete_session_command(Harness::Codex, "/h/.codex/sessions/r-abc.jsonl", "abc");
+        let codex = delete_session_command(
+            Harness::Codex,
+            "/h/.codex/sessions/r-abc.jsonl",
+            "abc",
+            "opencode",
+        );
         let codex = codex.unwrap();
         assert!(
             codex.contains("rm -f -- '/h/.codex/sessions/r-abc.jsonl' || exit 1"),
@@ -1886,8 +1924,12 @@ mod tests {
             "{codex}"
         );
 
-        let claude =
-            delete_session_command(Harness::Claude, "/h/.claude/projects/-w/id.jsonl", "id");
+        let claude = delete_session_command(
+            Harness::Claude,
+            "/h/.claude/projects/-w/id.jsonl",
+            "id",
+            "opencode",
+        );
         let claude = claude.unwrap();
         assert!(
             claude.contains("rm -f -- '/h/.claude/projects/-w/id.jsonl' || exit 1"),
@@ -1911,13 +1953,18 @@ mod tests {
         );
         assert!(!codex.contains("session-env"), "{codex}");
         // A transcript outside a `projects` tree names no environment record.
-        let flat = delete_session_command(Harness::Claude, "/h/id.jsonl", "id").unwrap();
+        let flat =
+            delete_session_command(Harness::Claude, "/h/id.jsonl", "id", "opencode").unwrap();
         assert!(!flat.contains("session-env"), "{flat}");
 
-        assert!(delete_session_command(Harness::Opencode, "/x/ses_a.jsonl", "a").is_err());
+        // opencode names its sessions after their ids; anything else is not one.
+        assert!(
+            delete_session_command(Harness::Opencode, "/x/rollout-a.jsonl", "a", "opencode")
+                .is_err()
+        );
         // A path that is not a session file is refused before any shell runs.
-        assert!(delete_session_command(Harness::Codex, "relative.jsonl", "a").is_err());
-        assert!(delete_session_command(Harness::Pi, "/etc/passwd", "a").is_err());
+        assert!(delete_session_command(Harness::Codex, "relative.jsonl", "a", "opencode").is_err());
+        assert!(delete_session_command(Harness::Pi, "/etc/passwd", "a", "opencode").is_err());
     }
 
     #[test]
@@ -1926,8 +1973,14 @@ mod tests {
             ("codex", Harness::Codex, "/h/s/r-abc.jsonl", "abc"),
             ("claude", Harness::Claude, "/h/p/-w/id.jsonl", "id"),
             ("idless", Harness::Codex, "/h/s/r-abc.jsonl", ""),
+            (
+                "opencode",
+                Harness::Opencode,
+                "/h/.cache/pabloagent/opencode/ses_abc123.jsonl",
+                "",
+            ),
         ] {
-            let cmd = delete_session_command(harness, path, id).unwrap();
+            let cmd = delete_session_command(harness, path, id, "opencode").unwrap();
             for line in cmd.lines().filter(|l| l.starts_with("rm ")) {
                 assert!(line.ends_with(" || exit 1"), "{what}: {line}");
             }
@@ -1942,14 +1995,65 @@ mod tests {
             );
         }
         // The path reaches the message as a quoted argument, never as shell.
-        let hostile = delete_session_command(Harness::Codex, "/h/$(id).jsonl", "abc").unwrap();
+        let hostile =
+            delete_session_command(Harness::Codex, "/h/$(id).jsonl", "abc", "opencode").unwrap();
         assert!(!hostile.contains("\"the server"), "{hostile}");
         assert!(hostile.contains("'/h/$(id).jsonl' >&2"), "{hostile}");
     }
 
     #[test]
+    fn an_opencode_delete_goes_through_its_own_cli() {
+        let sid = "ses_05045079cffe3XjhRn27W8hZuU";
+        let path = format!("/h/.cache/pabloagent/opencode/{sid}.jsonl");
+        let cmd = delete_session_command(Harness::Opencode, &path, "", "/opt/opencode").unwrap();
+        assert!(
+            cmd.contains(&format!(
+                "bash -lc 'exec \"$0\" session delete \"$1\"' '/opt/opencode' '{sid}' || exit 1"
+            )),
+            "{cmd}"
+        );
+        assert!(
+            cmd.contains("bash -lc 'exec \"$0\" db \"$1\" --format tsv' '/opt/opencode'"),
+            "{cmd}"
+        );
+        assert!(
+            cmd.contains("SELECT count(*) AS n FROM session WHERE id=")
+                && cmd.contains("\"$n\" != 0"),
+            "the row must be counted after the delete: {cmd}"
+        );
+        let guard = cmd.find("PT_BUSY").unwrap();
+        let delete = cmd.find("session delete").unwrap();
+        let count = cmd.find("SELECT count(*)").unwrap();
+        let file = cmd.find("rm -f -- ").unwrap();
+        assert!(guard < delete && delete < count && count < file, "{cmd}");
+        // The id is the file's name, so the lock and the sidecar are found
+        // without one being passed.
+        assert!(cmd.contains(&format!("$r/locks/opencode-{sid}")), "{cmd}");
+        assert!(cmd.contains(&format!("[ \"$ro\" = '{path}' ]")), "{cmd}");
+        assert!(
+            cmd.contains(&format!("session-meta/opencode-{sid}\" || exit 1")),
+            "{cmd}"
+        );
+        // The file is this app's render of the row and goes with it; there is
+        // never a rewind backup to take.
+        assert!(
+            cmd.contains(&format!("rm -f -- '{path}' || exit 1")),
+            "{cmd}"
+        );
+        assert!(!cmd.contains("rewind-bak"), "{cmd}");
+        assert!(delete_session_command(
+            Harness::Opencode,
+            "/h/x/rollout-abc.jsonl",
+            "",
+            "opencode"
+        )
+        .is_err());
+    }
+
+    #[test]
     fn changing_a_session_is_guarded_by_the_turn_locks() {
-        let del = delete_session_command(Harness::Claude, "/h/p/-w/id.jsonl", "s-1").unwrap();
+        let del =
+            delete_session_command(Harness::Claude, "/h/p/-w/id.jsonl", "s-1", "opencode").unwrap();
         let rew = rewind_session_command(Harness::Pi, "/h/s/w/1_s-1.jsonl", 3, 9, "s-1").unwrap();
 
         for (what, cmd) in [("delete", &del), ("rewind", &rew)] {
@@ -1997,12 +2101,15 @@ mod tests {
         );
 
         // An id that could not be a lock directory's name never becomes one.
-        assert!(delete_session_command(Harness::Codex, "/h/s/r.jsonl", "../../x").is_err());
+        assert!(
+            delete_session_command(Harness::Codex, "/h/s/r.jsonl", "../../x", "opencode").is_err()
+        );
         assert!(rewind_session_command(Harness::Codex, "/h/s/r.jsonl", 1, 9, "a b").is_err());
 
         // A session whose header would not parse has no id, and is guarded by
         // its path alone rather than refused.
-        let idless = delete_session_command(Harness::Codex, "/h/s/r.jsonl", "").unwrap();
+        let idless =
+            delete_session_command(Harness::Codex, "/h/s/r.jsonl", "", "opencode").unwrap();
         assert!(idless.contains("$td0/rollout"), "{idless}");
         assert!(!idless.contains("$r/locks/"), "{idless}");
     }
@@ -2437,13 +2544,15 @@ mod tests {
             Harness::Claude,
             "/h/p/-w/e60d9da3-971b-4f4e-961e-43d51c20e3ae.jsonl",
             "e60d9da3-971b-4f4e-961e-43d51c20e3ae",
+            "opencode",
         )
         .unwrap();
         assert!(
             del.contains("session-meta/claude-e60d9da3-971b-4f4e-961e-43d51c20e3ae"),
             "{del}"
         );
-        let idless = delete_session_command(Harness::Codex, "/h/s/r.jsonl", "").unwrap();
+        let idless =
+            delete_session_command(Harness::Codex, "/h/s/r.jsonl", "", "opencode").unwrap();
         assert!(!idless.contains("session-meta"), "{idless}");
     }
 

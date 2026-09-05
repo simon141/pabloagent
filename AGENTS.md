@@ -25,8 +25,10 @@ configuration.
   `pi --name` writes it and the picker reads back a bounded tail, so keep the
   sidecar copy the rename leaves for names that scroll out of it. Never spawn
   `codex app-server`: it is too expensive for the session-list poll.
-- Treat opencode's database as read-only. opencode sessions cannot be deleted or
-  rewound.
+- Write to opencode's database only through opencode's own CLI: a delete runs
+  `opencode session delete` and then counts the row, because opencode's
+  `remove` swallows failures. Never issue SQL that mutates the database.
+  opencode sessions cannot be rewound.
 - Rewind only the session record. Keep one `.rewind-bak` tail and leave
   workspace files alone.
 - Store shared session metadata in one sidecar file per key. Native session

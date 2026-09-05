@@ -1458,6 +1458,12 @@ function openSessionMenu(s: SessionSummary, at?: MenuAnchor): void {
 }
 
 function deletionTargets(s: SessionSummary): string[] {
+  if (s.harness === "opencode") {
+    return [
+      "the session, its messages and any child sessions, from opencode's database",
+      "this app's cached copy of the transcript",
+    ];
+  }
   const targets = [s.path];
   if (s.harness === "claude" && s.path.endsWith(".jsonl")) {
     const dir = s.path.slice(0, -".jsonl".length);

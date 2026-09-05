@@ -14,8 +14,8 @@ pub mod testing {
         parse_pretty_session, parse_sessions, parse_turn_poll, poll_turn_command,
         pretty_session_command, read_rollout_command, refused_because_busy, rewind_session_command,
         save_favorite_command, set_pi_session_name_command, set_session_closed_command,
-        start_turn_command, stop_turn_command, Harness, SessionSummary, TurnPoll, TurnRequest,
-        TurnState, SCRIPT,
+        set_session_label_command, start_turn_command, stop_turn_command, Harness, SessionSummary,
+        TurnPoll, TurnRequest, TurnState, SCRIPT,
     };
     pub use crate::ssh::{connect_full, ByteSink, ConnectOutcome, Connection, HostKeyPrompt};
     pub use crate::store::{KnownHost, NewChatDefaults, SshSettings};
@@ -555,13 +555,15 @@ async fn delete_session(
     harness: Option<remote::Harness>,
     thread_id: Option<String>,
 ) -> Result<(), String> {
+    let mut guard = state.connected("deleting a session").await?;
+    let connection = guard.as_mut().expect("checked");
+    let opencode_bin = connection.settings().opencode_bin.clone();
     let command = remote::delete_session_command(
         harness.unwrap_or_default(),
         &path,
         thread_id.as_deref().unwrap_or_default(),
+        &opencode_bin,
     )?;
-    let mut guard = state.connected("deleting a session").await?;
-    let connection = guard.as_mut().expect("checked");
     let output = connection.run_ok("delete session", &command).await?;
     if let Some(turn) = remote::refused_because_busy(&output) {
         state.diagnostics.push(

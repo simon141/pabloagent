@@ -90,7 +90,6 @@ export const HARNESSES: HarnessInfo[] = [
     binLabel: "opencode binary",
     sessionsLabel: "opencode's SQLite database",
     permissionModes: OPENCODE_PERMISSION_MODES,
-    cannotDeleteReason: "not supported for opencode",
     cannotRewindReason: "not supported for opencode",
   },
   {

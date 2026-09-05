@@ -22,9 +22,9 @@ use pabloagent_lib::testing::{
     parse_pretty_session, parse_sessions, parse_turn_poll, poll_turn_command,
     pretty_session_command, read_rollout_command, refused_because_busy, rewind_session_command,
     save_favorite_command, set_pi_session_name_command, set_session_closed_command,
-    start_turn_command, stop_turn_command, ConnectOutcome, Connection, Diagnostics, Download,
-    Harness, Header, KnownHost, NewChatDefaults, Progress, SessionSummary, SshSettings, TurnPoll,
-    TurnRequest, TurnState,
+    set_session_label_command, start_turn_command, stop_turn_command, ConnectOutcome, Connection,
+    Diagnostics, Download, Harness, Header, KnownHost, NewChatDefaults, Progress, SessionSummary,
+    SshSettings, TurnPoll, TurnRequest, TurnState,
 };
 use russh::keys::ssh_key::{HashAlg, PrivateKey};
 use russh::server::{Auth, ChannelOpenHandle, Handler, Msg, Server, Session};
@@ -279,6 +279,28 @@ if args[:1] == ["db"]:
     print("header")
     for row in db.execute(sql):
         print("\t".join(str(v) for v in row))
+    db.commit()
+    raise SystemExit(0)
+
+if args[:2] == ["session", "delete"]:
+    # `opencode session delete <id>`: the row, its messages and its children
+    # go; success is said on stderr and a missing id is exit 1.
+    sid = args[2] if len(args) > 2 else ""
+    if not sid.startswith("ses"):
+        sys.stderr.write('Error: Unexpected error\n\nExpected a string starting with "ses", got "%s"\n' % sid)
+        raise SystemExit(1)
+    if db.execute("SELECT 1 FROM session WHERE id=?", (sid,)).fetchone() is None:
+        sys.stderr.write("Error: Session not found: %s\n" % sid)
+        raise SystemExit(1)
+    def remove(s):
+        for (child,) in db.execute("SELECT id FROM session WHERE parent_id=?", (s,)).fetchall():
+            remove(child)
+        db.execute("DELETE FROM part WHERE session_id=?", (s,))
+        db.execute("DELETE FROM message WHERE session_id=?", (s,))
+        db.execute("DELETE FROM session WHERE id=?", (s,))
+    remove(sid)
+    db.commit()
+    sys.stderr.write("Session %s deleted\n" % sid)
     raise SystemExit(0)
 
 if args[:1] != ["run"]:
@@ -1876,6 +1898,7 @@ async fn changing_a_session_is_refused_while_a_turn_writes_it(name: &str, harnes
     let Some(mut remote) = Remote::start(name).await else {
         return;
     };
+    let opencode_bin = remote.connection.settings().opencode_bin.clone();
     let cwd = remote.temp.display().to_string();
     let request = |prompt: &str, thread: &str| TurnRequest {
         prompt: prompt.to_string(),
@@ -1908,7 +1931,7 @@ async fn changing_a_session_is_refused_while_a_turn_writes_it(name: &str, harnes
     let during_first = remote
         .run_guarded(
             "delete session",
-            delete_session_command(harness, &path, &thread),
+            delete_session_command(harness, &path, &thread, &opencode_bin),
         )
         .await;
 
@@ -1933,7 +1956,7 @@ async fn changing_a_session_is_refused_while_a_turn_writes_it(name: &str, harnes
     let delete = remote
         .run_guarded(
             "delete session",
-            delete_session_command(harness, &path, &thread),
+            delete_session_command(harness, &path, &thread, &opencode_bin),
         )
         .await;
     let rewind = remote
@@ -1954,7 +1977,7 @@ async fn changing_a_session_is_refused_while_a_turn_writes_it(name: &str, harnes
     let after = remote
         .run_guarded(
             "delete session",
-            delete_session_command(harness, &path, &thread),
+            delete_session_command(harness, &path, &thread, &opencode_bin),
         )
         .await;
     let deleted = !std::path::Path::new(&path).exists();
@@ -2011,6 +2034,7 @@ async fn deleting_a_claude_session_takes_the_files_left_beside_it() {
     let Some(mut remote) = Remote::start("delete-leftovers").await else {
         return;
     };
+    let opencode_bin = remote.connection.settings().opencode_bin.clone();
     let id = "e60d9da3-971b-4f4e-961e-43d51c20e3ae";
     let neighbour_id = "f60d9da3-971b-4f4e-961e-43d51c20e3ae";
     let projects = remote.temp.join(".claude/projects/-agents-adam");
@@ -2029,7 +2053,12 @@ async fn deleting_a_claude_session_takes_the_files_left_beside_it() {
     remote
         .run_guarded(
             "delete session",
-            delete_session_command(Harness::Claude, &path.display().to_string(), id),
+            delete_session_command(
+                Harness::Claude,
+                &path.display().to_string(),
+                id,
+                &opencode_bin,
+            ),
         )
         .await;
     let left = [&path, &backup, &env]
@@ -2059,6 +2088,7 @@ async fn a_delete_the_server_could_not_make_is_reported_as_a_failure() {
     let Some(mut remote) = Remote::start("delete-refused").await else {
         return;
     };
+    let opencode_bin = remote.connection.settings().opencode_bin.clone();
     let dir = remote.temp.join(".codex/sessions/2026/09/01");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("rollout-2026-09-01T10-00-00-abc123.jsonl");
@@ -2074,8 +2104,13 @@ async fn a_delete_the_server_could_not_make_is_reported_as_a_failure() {
         return;
     }
 
-    let command = delete_session_command(Harness::Codex, &path.display().to_string(), "abc123")
-        .expect("the delete must build");
+    let command = delete_session_command(
+        Harness::Codex,
+        &path.display().to_string(),
+        "abc123",
+        &opencode_bin,
+    )
+    .expect("the delete must build");
     let outcome = remote.connection.run_ok("delete session", &command).await;
     std::fs::set_permissions(&dir, mode).unwrap();
     let survived = path.exists();
@@ -2089,6 +2124,134 @@ async fn a_delete_the_server_could_not_make_is_reported_as_a_failure() {
     assert!(
         err.contains("Permission denied") || err.contains("still has"),
         "the reason the server gave must reach the reader: {err}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn deleting_an_opencode_session_goes_through_opencode_and_waits_for_its_turn() {
+    let Some(mut remote) = Remote::start("delete-opencode").await else {
+        return;
+    };
+    let cwd = remote.temp.display().to_string();
+    let opencode_bin = remote.connection.settings().opencode_bin.clone();
+    let request = |prompt: &str| TurnRequest {
+        prompt: prompt.to_string(),
+        harness: Harness::Opencode,
+        thread_id: String::new(),
+        cwd: cwd.clone(),
+        model: String::new(),
+        effort: String::new(),
+        permission_mode: String::new(),
+        session_id: String::new(),
+    };
+
+    // A neighbour the delete must leave alone.
+    if let Err(e) = remote
+        .start_turn("ocdelkeep1", &request("keep this one"))
+        .await
+    {
+        remote.cleanup();
+        panic!("the neighbour's turn failed to start: {e}");
+    }
+    remote.follow("ocdelkeep1").await;
+    let Some(kept) = remote.session_once_written().await else {
+        remote.cleanup();
+        panic!("the neighbour should have been listed");
+    };
+
+    // The one to delete, with a turn still writing it.
+    if let Err(e) = remote
+        .start_turn("ocdelbusy1", &request("please sleep-forever now"))
+        .await
+    {
+        remote.cleanup();
+        panic!("the doomed turn failed to start: {e}");
+    }
+    let mut doomed = None;
+    for _ in 0..100 {
+        doomed = remote
+            .sessions()
+            .await
+            .into_iter()
+            .find(|s| s.id != kept.id);
+        if doomed.is_some() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    let Some(doomed) = doomed else {
+        remote.cleanup();
+        panic!("the hanging turn should still have created a session");
+    };
+    // A label and a rendered history, so there is a sidecar and a cache file
+    // for the delete to take with the row.
+    remote
+        .run_guarded(
+            "label session",
+            set_session_label_command(Harness::Opencode, &doomed.id, "doomed"),
+        )
+        .await;
+    let _ = remote.read_history(Harness::Opencode, &doomed.path).await;
+    let sidecar = remote.temp.join(format!(
+        ".local/share/pabloagent/session-meta/opencode-{}",
+        doomed.id
+    ));
+    let had_leftovers = std::path::Path::new(&doomed.path).exists() && sidecar.exists();
+
+    let delete =
+        || delete_session_command(Harness::Opencode, &doomed.path, &doomed.id, &opencode_bin);
+    let during = remote.run_guarded("delete session", delete()).await;
+    let _ = remote
+        .connection
+        .run_ok("stop turn", &stop_turn_command("ocdelbusy1"))
+        .await;
+    let after = remote.run_guarded("delete session", delete()).await;
+    let again = remote
+        .connection
+        .run_ok("delete session", &delete().expect("the delete builds"))
+        .await;
+    let listed: Vec<String> = remote.sessions().await.into_iter().map(|s| s.id).collect();
+    let cache_left = std::path::Path::new(&doomed.path).exists();
+    let sidecar_left = sidecar.exists();
+    let rows = std::process::Command::new("python3")
+        .arg("-c")
+        .arg(
+            "import sqlite3, sys\n\
+             d = sqlite3.connect(sys.argv[1])\n\
+             print(sum(d.execute('SELECT count(*) FROM %s WHERE %s=?' % tc, (sys.argv[2],)).fetchone()[0]\n\
+             for tc in [('session', 'id'), ('message', 'session_id'), ('part', 'session_id')]))",
+        )
+        .arg(remote.temp.join(".local/share/opencode/opencode.db"))
+        .arg(&doomed.id)
+        .output()
+        .expect("python3 runs");
+    let rows = String::from_utf8_lossy(&rows.stdout).trim().to_string();
+    remote.cleanup();
+
+    assert!(
+        had_leftovers,
+        "the test must have a cache file and a sidecar to take"
+    );
+    assert_eq!(
+        refused_because_busy(&during),
+        Some("ocdelbusy1"),
+        "a delete must wait for the turn writing the session: {during:?}"
+    );
+    assert_eq!(
+        refused_because_busy(&after),
+        None,
+        "nothing is in the way once the turn has stopped: {after:?}"
+    );
+    assert_eq!(
+        rows, "0",
+        "the row, its messages and its parts must be gone"
+    );
+    assert!(!cache_left, "the rendered history goes with the row");
+    assert!(!sidecar_left, "and so does the sidecar record");
+    assert_eq!(listed, vec![kept.id], "only the neighbour remains");
+    assert!(
+        again.is_err(),
+        "deleting what is already gone must not read as success: {again:?}"
     );
 }
 
@@ -2180,6 +2343,7 @@ async fn a_closed_and_read_session_carries_its_sidecar_marks() {
     let Some(mut remote) = Remote::start("sidecar").await else {
         return;
     };
+    let opencode_bin = remote.connection.settings().opencode_bin.clone();
     let cwd = remote.temp.display().to_string();
     let request = TurnRequest {
         prompt: "say hello".to_string(),
@@ -2258,7 +2422,7 @@ async fn a_closed_and_read_session_carries_its_sidecar_marks() {
     let delete = remote
         .run_guarded(
             "delete session",
-            delete_session_command(Harness::Claude, &path, &thread),
+            delete_session_command(Harness::Claude, &path, &thread, &opencode_bin),
         )
         .await;
     let record_gone = !meta_dir.exists();

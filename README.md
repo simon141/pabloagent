@@ -98,18 +98,20 @@ at once.
   plain `.txt` prompts without modifying them.
 - Copy, resend, or send a prompt to another chat.
 - Label any session for this app, and rename a pi session in pi's own record.
-- Rewind and delete file-based sessions when no turn is writing them. Rewind
-  changes the conversation record only, not files changed by the agent.
+- Delete sessions, and rewind file-based ones, when no turn is writing them.
+  Rewind changes the conversation record only, not files changed by the agent.
 - Show context usage and estimated cost when the session contains enough data.
 - Notify on Android when a followed turn finishes in the background. Android
   Doze and vendor battery controls can delay or prevent that notification; the
   completed turn remains on the server.
 
-opencode sessions cannot be deleted or rewound because Pablo treats its database
-as read-only. Labels and favorites are Pablo-side and stored in sidecar files on
-the host, so every Pablo instance sees the same ones. pi is the only
-CLI with a session name of its own: renaming a pi session runs `pi --name`, so
-the name is in pi's session record and pi shows it too.
+opencode sessions are deleted with `opencode session delete`, which removes the
+session and its child sessions from opencode's database. They cannot be rewound
+because Pablo does not write to that database itself. Labels and favorites are
+Pablo-side and stored in sidecar files on the host, so every Pablo instance sees
+the same ones. pi is the only CLI with a session name of its own: renaming a pi
+session runs `pi --name`, so the name is in pi's session record and pi shows it
+too.
 
 ## Security model
 
