@@ -1103,7 +1103,7 @@ function sessionSubtitle(
   // `s.title`: a session with no AI title shows its prompt up there.
   if (preview && preview !== shown.trim()) return preview;
   const cwd = s.cwd?.trim() ?? "";
-  if (cwd) return cwd.split("/").filter(Boolean).pop() ?? cwd;
+  if (cwd) return cwd;
   return "No messages yet";
 }
 
