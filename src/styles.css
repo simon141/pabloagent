@@ -2556,6 +2556,25 @@ button {
   margin: 0 0 6px;
   font-size: 17px;
 }
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.drawer-head h2 {
+  margin: 0;
+}
+/* Pulled out to the sheet's padding so the glyph, not the touch target, lines
+ * up with the items below it. */
+.drawer-close {
+  margin: -8px -9px 0 0;
+}
+.drawer-close svg {
+  width: 20px;
+  height: 20px;
+}
 .drawer-item {
   text-align: left;
   padding: 13px 12px;
@@ -2564,6 +2583,14 @@ button {
   background: transparent;
   color: var(--text);
   cursor: pointer;
+}
+/* The sheet's own gap would space these off the items above and below by the
+ * same 8px it puts between them, which reads as one more list. */
+.drawer-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0;
 }
 .drawer-link {
   color: var(--link);

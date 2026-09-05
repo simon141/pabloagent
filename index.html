@@ -373,7 +373,20 @@
          with something highlighted on appearance reads as already chosen. -->
     <div id="drawer" class="drawer" hidden>
       <div class="drawer-sheet" tabindex="-1">
-        <h2>Settings</h2>
+        <div class="drawer-head">
+          <h2>Settings</h2>
+          <button
+            type="button"
+            data-action="close"
+            class="icon-btn drawer-close"
+            aria-label="Close the menu"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
         <button type="button" data-action="new-chat" class="drawer-item">New chat</button>
         <!-- Always listed, drafts or none: asking the server whether any exist
              would cost every drawer open a round trip. -->
@@ -391,20 +404,21 @@
           hidden
         >Diagnostics</button>
         <button type="button" data-action="reconnect" class="drawer-item">Reconnect</button>
-        <a
-          class="drawer-link"
-          href="https://claude.ai/settings/usage"
-          target="_blank"
-          rel="noopener noreferrer"
-        >https://claude.ai/settings/usage</a>
-        <a
-          class="drawer-link"
-          href="https://chatgpt.com/codex/settings/usage"
-          target="_blank"
-          rel="noopener noreferrer"
-        >https://chatgpt.com/codex/settings/usage</a>
+        <div class="drawer-links">
+          <a
+            class="drawer-link"
+            href="https://claude.ai/settings/usage"
+            target="_blank"
+            rel="noopener noreferrer"
+          >https://claude.ai/settings/usage</a>
+          <a
+            class="drawer-link"
+            href="https://chatgpt.com/codex/settings/usage"
+            target="_blank"
+            rel="noopener noreferrer"
+          >https://chatgpt.com/codex/settings/usage</a>
+        </div>
         <div class="drawer-meta drawer-stats" id="drawer-stats"></div>
-        <button type="button" data-action="close" class="ghost block">Close</button>
       </div>
     </div>
 

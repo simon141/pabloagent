@@ -5215,7 +5215,9 @@ function wireEvents(): void {
       );
       return;
     }
-    const action = target.dataset.action;
+    // `closest`, not the target's own dataset: a tap landing on the close
+    // button's `<svg>` reports the icon, which carries no action.
+    const action = target.closest<HTMLElement>("[data-action]")?.dataset.action;
     if (action) void handleDrawerAction(action);
   });
 
