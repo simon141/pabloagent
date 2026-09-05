@@ -4709,38 +4709,10 @@ function renderDrawerMaintenanceItems(): void {
   show($("drawer-diagnostics"), maintenanceMode);
 }
 
-async function openDrawer(): Promise<void> {
+function openDrawer(): void {
   renderDrawerMaintenanceItems();
-  const generation = ++drawerLoadGeneration;
-  const meta = $("drawer-meta");
-  meta.textContent = "Loading connection details…";
-  meta.classList.add("loading");
-  // Started here rather than awaited below: the details above come out of what
-  // connecting already established, and must not be held back by a round trip.
-  void loadHostStats(generation);
+  void loadHostStats(++drawerLoadGeneration);
   show($("drawer"), true);
-  try {
-    const info = await api.connectionInfo();
-    if (generation !== drawerLoadGeneration) return;
-    if (info) capabilities = info.capabilities;
-    meta.textContent = info
-      ? [
-          `${info.username}@${info.host}:${info.port}`,
-          // Every binary, present or not: "no sessions listed" reads very
-          // differently once the drawer says one of them is missing.
-          `${info.codexBin} — ${info.capabilities.codexVersion ?? "not installed"}`,
-          `${info.claudeBin} — ${info.capabilities.claudeVersion ?? "not installed"}`,
-          `${info.opencodeBin} — ${info.capabilities.opencodeVersion ?? "not installed"}`,
-          `${info.piBin} — ${info.capabilities.piVersion ?? "not installed"}`,
-        ].join("\n")
-      : "Not connected";
-  } catch (err) {
-    if (generation !== drawerLoadGeneration) return;
-    meta.textContent = "Could not load connection details";
-    void api.logClient("ui", `could not load drawer details: ${err}`);
-  } finally {
-    if (generation === drawerLoadGeneration) meta.classList.remove("loading");
-  }
 }
 
 async function loadHostStats(generation: number): Promise<void> {
