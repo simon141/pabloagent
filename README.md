@@ -73,15 +73,34 @@ Pablo has been building Pablo ever since.
 
 ## Screenshots
 
-| Sessions | Agent at work | Quick back and forth |
-| :---: | :---: | :---: |
-| <img src="docs/screenshots/sessions.png" width="260" alt="Session picker grouped by day, mixing all four agents"> | <img src="docs/screenshots/chat-top.png" width="260" alt="Claude Code transcript with a user prompt, tool cards and an inline diff"> | <img src="docs/screenshots/chat-conversation.png" width="260" alt="Codex conversation about a Lighthouse LCP regression, with no tool calls"> |
-
-| Diff and reply | New chat | Context usage |
-| :---: | :---: | :---: |
-| <img src="docs/screenshots/chat.png" width="260" alt="Inline diff followed by a Markdown reply"> | <img src="docs/screenshots/new-chat.png" width="260" alt="New chat dialog with favourites, model, effort and permission mode"> | <img src="docs/screenshots/context.png" width="260" alt="Context usage dialog with token breakdown and estimated cost"> |
-
-<p align="center"><img src="docs/screenshots/drawer.png" width="260" alt="Settings drawer with CLI versions and host CPU, memory and disk stats"></p>
+<table>
+  <tr>
+    <th width="33%">Sessions</th>
+    <th width="33%">Agent at work</th>
+    <th width="33%">Quick back and forth</th>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/sessions.png" width="100%" alt="Session picker grouped by day, mixing all four agents"></td>
+    <td align="center"><img src="docs/screenshots/chat-top.png" width="100%" alt="Claude Code transcript with a user prompt, tool cards and an inline diff"></td>
+    <td align="center"><img src="docs/screenshots/chat-conversation.png" width="100%" alt="Codex conversation about a Lighthouse LCP regression, with no tool calls"></td>
+  </tr>
+  <tr>
+    <th>Diff and reply</th>
+    <th>New chat</th>
+    <th>Context usage</th>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/chat.png" width="100%" alt="Inline diff followed by a Markdown reply"></td>
+    <td align="center"><img src="docs/screenshots/new-chat.png" width="100%" alt="New chat dialog with favourites, model, effort and permission mode"></td>
+    <td align="center"><img src="docs/screenshots/context.png" width="100%" alt="Context usage dialog with token breakdown and estimated cost"></td>
+  </tr>
+  <tr>
+    <th colspan="3">Settings drawer</th>
+  </tr>
+  <tr>
+    <td colspan="3" align="center"><img src="docs/screenshots/drawer.png" width="31%" alt="Settings drawer with CLI versions and host CPU, memory and disk stats"></td>
+  </tr>
+</table>
 
 ## Downloads
 
