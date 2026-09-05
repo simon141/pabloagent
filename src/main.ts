@@ -52,7 +52,7 @@ import {
   piModelChoices,
 } from "./models";
 import { piSessionName } from "./pi-rollout";
-import { anchorMenu, type MenuAnchor, softKeyboard } from "./platform";
+import { anchorMenu, type MenuAnchor } from "./platform";
 import {
   type CodexRateLimits,
   type CodexRateLimitWindow,
@@ -1958,7 +1958,7 @@ function setHarness(harness: Harness): void {
 function resetChat(): void {
   chatGeneration += 1;
   composerSendSeq += 1;
-  $<HTMLTextAreaElement>("composer-input").disabled = false;
+  composerSending = false;
   chat.threadId = null;
   chat.rolloutPath = null;
   chat.entries = [];
@@ -3113,24 +3113,30 @@ function prefillComposer(text: string): void {
 // Counts composer submits. `resetChat` bumps it too, so a send still waiting
 // on the server when the user switches chats leaves the new chat's box alone.
 let composerSendSeq = 0;
+let composerSending = false;
 
-// The prompt stays in the box, disabled, until the server has the turn: a send
-// that fails leaves it there to fix or retry instead of in an error bubble.
+// The box empties but stays enabled while the server takes the turn: disabling
+// it would dismiss the Android keyboard. A send that fails puts the prompt back
+// to fix or retry instead of in an error bubble.
 async function sendFromComposer(text: string): Promise<void> {
   const input = $<HTMLTextAreaElement>("composer-input");
   const key = composerDraftKey();
-  const refocus = document.activeElement === input && !softKeyboard();
   const seq = ++composerSendSeq;
-  input.disabled = true;
+  composerSending = true;
+  input.value = "";
+  input.dispatchEvent(new Event("input"));
   const started = await sendPrompt(text);
   if (started) composerDrafts.delete(key);
-  if (seq !== composerSendSeq) return;
-  input.disabled = false;
-  if (started) {
-    input.value = "";
+  if (seq !== composerSendSeq) {
+    if (!started && !composerDrafts.has(key)) composerDrafts.set(key, text);
+    return;
+  }
+  composerSending = false;
+  if (!started) {
+    const typed = input.value.trim();
+    input.value = typed ? `${text}\n\n${typed}` : text;
     input.dispatchEvent(new Event("input"));
   }
-  if (refocus) input.focus();
 }
 
 function renderShareNotice(): void {
@@ -5162,13 +5168,16 @@ function wireEvents(): void {
   $("composer").addEventListener("submit", (e) => {
     e.preventDefault();
     const text = input.value.trim();
-    if (!text || chat.turnActive || input.disabled) return;
+    if (!text || chat.turnActive || composerSending) return;
     void sendFromComposer(text);
   });
 
   // The hold's own click-swallowing is what keeps the release from also
   // submitting the form.
   attachHoldMenu($("composer-send"), openComposerMenu);
+  // A tap on send must not take focus from the textarea, or Android drops the
+  // keyboard. Cancelling pointerdown stops the focus change; click still fires.
+  $("composer-send").addEventListener("pointerdown", (e) => e.preventDefault());
 
   $("drafts-close").addEventListener("click", () =>
     show($("modal-drafts"), false),
