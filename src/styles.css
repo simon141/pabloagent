@@ -522,41 +522,6 @@ button {
   display: block;
 }
 
-.ptr-host {
-  overscroll-behavior-y: contain;
-}
-.ptr {
-  height: 0;
-  overflow: hidden;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
-.ptr.settling {
-  transition: height 0.18s ease;
-}
-.ptr-ring {
-  flex: 0 0 auto;
-  width: 22px;
-  height: 22px;
-  margin: 10px 0;
-  border-radius: 50%;
-  border: 2.5px solid var(--line);
-  border-top-color: var(--accent);
-  opacity: 0.55;
-}
-.ptr.armed .ptr-ring {
-  opacity: 1;
-}
-.ptr.busy .ptr-ring {
-  animation: spin 0.9s linear infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .ptr.busy .ptr-ring {
-    animation: none;
-  }
-}
-
 .share-notice {
   margin: 0 0 12px;
   padding: 10px 12px;

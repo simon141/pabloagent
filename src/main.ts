@@ -4894,77 +4894,6 @@ async function handleDrawerAction(action: string): Promise<void> {
   }
 }
 
-// The WebView owns the scroll, so Android's own gesture never fires here and
-// this rebuilds the convention from touch events: pulling down from the top of
-// the list grows a ring, and past the arm point letting go runs the refresh.
-function installPullToRefresh(
-  body: HTMLElement,
-  indicator: HTMLElement,
-  refresh: () => Promise<void>,
-): void {
-  const ARM_AT = 64; // indicator height that commits a refresh on release
-  const MAX = 96; // hard stop so the pull cannot drag forever
-  let startY: number | null = null;
-  let busy = false;
-
-  const setHeight = (px: number) => {
-    indicator.style.height = `${px}px`;
-    indicator.classList.toggle("armed", px >= ARM_AT);
-  };
-
-  body.addEventListener(
-    "touchstart",
-    (e) => {
-      if (busy) return;
-      // Snap-back animates; the pull itself must track the finger directly.
-      indicator.classList.remove("settling");
-      startY = body.scrollTop <= 0 ? e.touches[0].clientY : null;
-    },
-    { passive: true },
-  );
-
-  body.addEventListener(
-    "touchmove",
-    (e) => {
-      if (busy) return;
-      const y = e.touches[0].clientY;
-      if (startY === null) {
-        // A drag that reaches the top mid-gesture starts pulling from here.
-        if (body.scrollTop <= 0) startY = y;
-        return;
-      }
-      const delta = y - startY;
-      if (delta <= 0 || body.scrollTop > 0) {
-        setHeight(0);
-        return;
-      }
-      // Half the finger's travel reads as elastic rather than as scrolling.
-      setHeight(Math.min(MAX, delta / 2));
-    },
-    { passive: true },
-  );
-
-  const release = () => {
-    if (busy || startY === null) return;
-    startY = null;
-    indicator.classList.add("settling");
-    if (!indicator.classList.contains("armed")) {
-      setHeight(0);
-      return;
-    }
-    busy = true;
-    indicator.classList.add("busy");
-    setHeight(ARM_AT); // hold the ring on screen while the refresh runs
-    void refresh().finally(() => {
-      busy = false;
-      indicator.classList.remove("busy");
-      setHeight(0);
-    });
-  };
-  body.addEventListener("touchend", release);
-  body.addEventListener("touchcancel", release);
-}
-
 function wireEvents(): void {
   $("form-connect").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -5004,9 +4933,6 @@ function wireEvents(): void {
   // Waiting text is only ever spent by opening a chat, so without this a share
   // cannot be abandoned short of sending it somewhere.
   $("share-notice-dismiss").addEventListener("click", discardPendingShare);
-  installPullToRefresh($("sessions-body"), $("sessions-ptr"), () =>
-    refreshSessions(true, true),
-  );
 
   // Changing harness re-populates the models, efforts and permission row: the
   // lists have nothing in common, and a leftover selection would be sent as a
