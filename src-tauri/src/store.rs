@@ -68,6 +68,7 @@ pub struct PersistedState {
     pub send_on_enter: bool,
     pub maintenance_mode: bool,
     pub favorites_collapsed: bool,
+    pub experimental_features: bool,
     pub draft_prompts_path: String,
 }
 
@@ -84,6 +85,7 @@ impl Default for PersistedState {
             send_on_enter: false,
             maintenance_mode: false,
             favorites_collapsed: false,
+            experimental_features: false,
             draft_prompts_path: String::new(),
         }
     }
@@ -268,6 +270,7 @@ mod tests {
             chat_font_size: 17,
             send_on_enter: true,
             favorites_collapsed: true,
+            experimental_features: true,
             ..PersistedState::default()
         };
         let restored: PersistedState =
@@ -275,6 +278,7 @@ mod tests {
         assert_eq!(restored.chat_font_size, 17);
         assert!(restored.send_on_enter);
         assert!(restored.favorites_collapsed);
+        assert!(restored.experimental_features);
     }
 
     fn saved_state() -> serde_json::Value {

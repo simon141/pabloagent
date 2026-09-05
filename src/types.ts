@@ -43,6 +43,7 @@ export interface PersistedState {
   sendOnEnter: boolean;
   maintenanceMode: boolean;
   favoritesCollapsed: boolean;
+  experimentalFeatures: boolean;
 
   draftPromptsPath: string;
 }

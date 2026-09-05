@@ -263,6 +263,13 @@
               aria-label="Context usage"
               hidden
             ></button>
+            <button
+              id="cost-pill"
+              type="button"
+              class="context-pill"
+              aria-label="Session cost"
+              hidden
+            ></button>
           </div>
 
           <div id="transcript" class="transcript"></div>
@@ -563,6 +570,16 @@
             <span>Send on enter</span>
             <span class="filter-hint"
               >Press Enter to send. Shift+Enter adds a new line.</span
+            >
+          </span>
+        </label>
+        <label class="filter-row">
+          <input type="checkbox" id="set-experimental" />
+          <span class="filter-label">
+            <span>Experimental features</span>
+            <span class="filter-hint"
+              >Shows UI elements still being tried out, like the session cost
+              pill in the chat status bar.</span
             >
           </span>
         </label>

@@ -153,6 +153,7 @@ let transcriptFilters: Record<string, string[]> = {};
 let theme: ThemeChoice = "system";
 let chatFontSize: ChatFontSize = 15;
 let sendOnEnter = false;
+let experimentalFeatures = false;
 let maintenanceMode = false;
 let draftPromptsPath = "";
 let capabilities: HostCapabilities | null = null;
@@ -1635,9 +1636,11 @@ function updateContextIndicator(
   contextNow = usage;
   contextRateLimits = rateLimits;
   const pill = $("context-pill");
+  const costPill = $("cost-pill");
   pill.classList.remove("low", "mid", "high");
   if (!usage) {
     show(pill, false);
+    show(costPill, false);
     if (!$("modal-context").hidden) show($("modal-context"), false);
     return;
   }
@@ -1650,6 +1653,14 @@ function updateContextIndicator(
     pill.title = `${formatPercent(usage.percent)} of the context window used`;
   }
   show(pill, true);
+  const cost = usage.sessionCost;
+  if (cost) {
+    costPill.textContent = formatCost(cost.dollars);
+    costPill.title = cost.estimated
+      ? "Estimated session cost at published API prices"
+      : "Session cost as recorded by the CLI";
+  }
+  show(costPill, Boolean(cost) && experimentalFeatures);
   // A turn in flight moves these numbers on every poll, so an open popup is
   // kept current rather than freezing at what it said when it was opened.
   if (!$("modal-context").hidden) renderContextModal(usage);
@@ -4351,6 +4362,7 @@ function openPreferences(): void {
   $<HTMLSelectElement>("set-chat-font-size").value = String(chatFontSize);
   $<HTMLInputElement>("set-send-on-enter").checked = sendOnEnter;
   $<HTMLInputElement>("set-maintenance").checked = maintenanceMode;
+  $<HTMLInputElement>("set-experimental").checked = experimentalFeatures;
   $<HTMLInputElement>("set-drafts-path").value = draftPromptsPath;
   show($("modal-preferences"), true);
 }
@@ -4383,6 +4395,15 @@ function chooseSendOnEnter(on: boolean): void {
   void api.saveSendOnEnter(on).catch((err) => {
     void api.logClient("ui", `could not save send on enter: ${err}`);
     toast("Send on enter changed, but not saved");
+  });
+}
+
+function chooseExperimentalFeatures(on: boolean): void {
+  experimentalFeatures = on;
+  updateContextIndicator(contextNow, contextRateLimits);
+  void api.saveExperimentalFeatures(on).catch((err) => {
+    void api.logClient("ui", `could not save experimental features: ${err}`);
+    toast("Experimental features changed, but not saved");
   });
 }
 
@@ -5104,6 +5125,7 @@ function wireEvents(): void {
     transcript.scrollToBottom(true),
   );
   $("context-pill").addEventListener("click", () => openContextModal());
+  $("cost-pill").addEventListener("click", () => openContextModal());
   for (const id of ["ctx-codex-usage-note", "ctx-claude-usage-note"]) {
     $(id).addEventListener("click", (event) => {
       const link = (event.target as HTMLElement | null)?.closest("a[href]");
@@ -5244,6 +5266,9 @@ function wireEvents(): void {
   $<HTMLInputElement>("set-maintenance").addEventListener("change", (e) => {
     chooseMaintenanceMode((e.target as HTMLInputElement).checked);
   });
+  $<HTMLInputElement>("set-experimental").addEventListener("change", (e) => {
+    chooseExperimentalFeatures((e.target as HTMLInputElement).checked);
+  });
   $<HTMLInputElement>("set-drafts-path").addEventListener("change", (e) => {
     chooseDraftPromptsPath((e.target as HTMLInputElement).value.trim());
   });
@@ -5358,6 +5383,7 @@ async function main(): Promise<void> {
   applySendOnEnter();
   maintenanceMode = persisted.maintenanceMode;
   renderDrawerMaintenanceItems();
+  experimentalFeatures = persisted.experimentalFeatures;
   favoritesCollapsed = persisted.favoritesCollapsed;
   draftPromptsPath = persisted.draftPromptsPath;
   fillConnectForm(settings);
