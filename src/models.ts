@@ -18,6 +18,12 @@ const CODEX_MODELS: ModelChoice[] = [
     defaultEffort: "",
   },
   {
+    id: "gpt-6-astra",
+    label: "GPT-6-Astra",
+    efforts: ["low", "medium", "high", "xhigh", "max", "ultra"],
+    defaultEffort: "low",
+  },
+  {
     id: "gpt-5.6-sol",
     label: "GPT-5.6-Sol",
     efforts: ["low", "medium", "high", "xhigh", "max", "ultra"],
