@@ -865,7 +865,10 @@ button {
 .session-row.running .session-avatar .harness-icon {
   animation: spin 2.4s linear infinite;
 }
-.session-row.closed .harness-icon,
+.session-row.closed .session-avatar {
+  filter: grayscale(1);
+  opacity: 0.4;
+}
 .chat-status.closed .harness-icon {
   filter: grayscale(1);
 }
