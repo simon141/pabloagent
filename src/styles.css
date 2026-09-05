@@ -1463,7 +1463,7 @@ button {
 .drafts-status.loading {
   display: flex;
   justify-content: center;
-  margin: 0;
+  margin: 24px 0;
 }
 .drafts-status.loading::before {
   content: "";
