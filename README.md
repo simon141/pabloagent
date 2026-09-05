@@ -83,18 +83,6 @@ Pablo has been building Pablo ever since.
 
 <p align="center"><img src="docs/screenshots/drawer.png" width="260" alt="Settings drawer with CLI versions and host CPU, memory and disk stats"></p>
 
-## Supported agents
-
-| CLI | Session source | Delete | Rewind | Native name |
-| --- | --- | :---: | :---: | :---: |
-| [Codex CLI](https://github.com/openai/codex) | append-only JSONL under `~/.codex/sessions` | yes | yes | label only |
-| [Claude Code](https://code.claude.com/docs) | append-only JSONL under `~/.claude/projects` | yes | yes | label only |
-| [opencode](https://opencode.ai) | SQLite database plus the live JSON event stream | via `opencode session delete` | no | label only |
-| [pi](https://github.com/earendil-works/pi) | append-only JSONL under `~/.pi/agent/sessions` | yes | yes | `pi --name` |
-
-Each session keeps its own model, workspace, turn status and transcript reader.
-Several sessions can run at once.
-
 ## Downloads
 
 Latest build from `main`:
@@ -120,6 +108,18 @@ Pablo needs a Linux host with:
 - `tmux`
 - at least one supported CLI installed, authenticated, and usable by the SSH
   user
+
+## Supported agents
+
+| CLI | Session source | Delete | Rewind | Native name |
+| --- | --- | :---: | :---: | :---: |
+| [Codex CLI](https://github.com/openai/codex) | append-only JSONL under `~/.codex/sessions` | yes | yes | label only |
+| [Claude Code](https://code.claude.com/docs) | append-only JSONL under `~/.claude/projects` | yes | yes | label only |
+| [opencode](https://opencode.ai) | SQLite database plus the live JSON event stream | via `opencode session delete` | no | label only |
+| [pi](https://github.com/earendil-works/pi) | append-only JSONL under `~/.pi/agent/sessions` | yes | yes | `pi --name` |
+
+Each session keeps its own model, workspace, turn status and transcript reader.
+Several sessions can run at once.
 
 ## How it works
 
