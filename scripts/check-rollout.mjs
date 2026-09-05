@@ -900,8 +900,16 @@ check(
   "each Anthropic tier gets its own rate, Haiku matched before the family patterns",
 );
 check(
-  costOf({ ...emptyBreakdown(), input: 100_000 }, "gpt-5.6-sol").dollars ===
-    0.4 &&
+  costOf({ ...emptyBreakdown(), input: 100_000 }, "gpt-6-astra").dollars ===
+    1 &&
+    costOf({ ...emptyBreakdown(), output: 1_000_000 }, "gpt-6-astra")
+      .dollars === 50 &&
+    costOf({ ...emptyBreakdown(), cacheRead: 100_000 }, "gpt-6-astra")
+      .dollars === 0.1 &&
+    costOf({ ...emptyBreakdown(), input: 272_001 }, "gpt-6-astra").dollars ===
+      (272_001 * 10 * 2) / 1_000_000 &&
+    costOf({ ...emptyBreakdown(), input: 100_000 }, "gpt-5.6-sol").dollars ===
+      0.4 &&
     costOf({ ...emptyBreakdown(), output: 1_000_000 }, "gpt-5.6").dollars ===
       20 &&
     costOf({ ...emptyBreakdown(), output: 1_000_000 }, "gpt-5.6-terra")

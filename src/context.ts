@@ -86,6 +86,8 @@ function knownPrice(model: string): ModelPrice | null {
   if (id.includes("sonnet-5") || /^sonnet(?:\[1m\])?$/.test(id))
     return { input: 2, output: 10 };
   if (id.includes("sonnet")) return { input: 3, output: 15 };
+  if (id.includes("gpt-6-astra"))
+    return { input: 10, output: 50, longContext: true };
   if (id.includes("gpt-5.6-sol") || /(^|\/)gpt-5\.6$/.test(id))
     return { input: 4, output: 20, longContext: true };
   if (id.includes("gpt-5.6-terra"))
