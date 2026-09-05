@@ -64,7 +64,6 @@ import {
 } from "./session";
 import { Transcript } from "./transcript";
 import type {
-  ChatFontSize,
   Delivery,
   DownloadProgress,
   DraftPromptFile,
@@ -151,7 +150,9 @@ let transcript: Transcript;
 
 let transcriptFilters: Record<string, string[]> = {};
 let theme: ThemeChoice = "system";
-let chatFontSize: ChatFontSize = 15;
+const CHAT_ZOOM_MIN = 0.5;
+const CHAT_ZOOM_MAX = 2.5;
+let chatZoom = 1;
 let sendOnEnter = false;
 let experimentalFeatures = false;
 let maintenanceMode = false;
@@ -3835,6 +3836,8 @@ function openChatMenu(): void {
   renderChatMenuDetails();
   renderChatMenuClose();
   renderChatMenuDelete();
+  $("chat-menu-zoom-note").textContent =
+    chatZoom === 1 ? "" : `${chatZoomPercent()}%`;
   show($("chat-menu"), true);
   $("chat-menu-btn").setAttribute("aria-expanded", "true");
 }
@@ -4350,16 +4353,115 @@ function applyTheme(): void {
   window.PabloSystemBars?.setScheme(resolved);
 }
 
-function applyChatFontSize(): void {
-  document.documentElement.style.setProperty(
-    "--chat-font-size",
-    `${chatFontSize}px`,
+function applyChatZoom(): void {
+  document.documentElement.style.setProperty("--chat-zoom", String(chatZoom));
+}
+
+// `focalY` is the pinch centre measured from the top of the transcript; the
+// content under it stays put while everything reflows around it.
+function setChatZoom(next: number, focalY: number): void {
+  const zoom = Math.min(CHAT_ZOOM_MAX, Math.max(CHAT_ZOOM_MIN, next));
+  if (zoom === chatZoom) return;
+  const el = $("transcript");
+  const padTop = Number.parseFloat(getComputedStyle(el).paddingTop) || 0;
+  const before = el.scrollTop + focalY - padTop;
+  const ratio = zoom / chatZoom;
+  chatZoom = zoom;
+  applyChatZoom();
+  el.scrollTop = before * ratio + padTop - focalY;
+}
+
+const chatZoomPercent = (): number => Math.round(chatZoom * 100);
+
+// Zoom set from the dialog keeps the middle of the visible chat in place.
+function setChatZoomPercent(percent: number): void {
+  setChatZoom(percent / 100, $("transcript").clientHeight / 2);
+  renderChatZoomDialog();
+  saveChatZoomSoon();
+}
+
+function renderChatZoomDialog(): void {
+  const percent = chatZoomPercent();
+  $<HTMLInputElement>("zoom-range").value = String(percent);
+  $("zoom-value").textContent = `${percent}%`;
+  $<HTMLButtonElement>("zoom-reset").disabled = percent === 100;
+  $<HTMLButtonElement>("zoom-out").disabled = chatZoom <= CHAT_ZOOM_MIN;
+  $<HTMLButtonElement>("zoom-in").disabled = chatZoom >= CHAT_ZOOM_MAX;
+}
+
+function openChatZoomDialog(): void {
+  closeChatMenu();
+  renderChatZoomDialog();
+  show($("modal-chat-zoom"), true);
+}
+
+let saveChatZoomTimer: number | undefined;
+function saveChatZoomSoon(): void {
+  window.clearTimeout(saveChatZoomTimer);
+  saveChatZoomTimer = window.setTimeout(() => {
+    void api.saveChatZoom(chatZoom).catch((err) => {
+      void api.logClient("ui", `could not save chat zoom: ${err}`);
+    });
+  }, 400);
+}
+
+function installPinchZoom(el: HTMLElement): void {
+  let startDistance = 0;
+  let startZoom = 1;
+  let pinching = false;
+  const distance = (t: TouchList) =>
+    Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  const focal = (y: number) => y - el.getBoundingClientRect().top;
+
+  el.addEventListener(
+    "touchstart",
+    (e) => {
+      if (e.touches.length !== 2) return;
+      pinching = true;
+      startDistance = distance(e.touches);
+      startZoom = chatZoom;
+    },
+    { passive: true },
+  );
+  el.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!pinching || e.touches.length !== 2) return;
+      // Once a one-finger scroll is under way the browser owns the gesture and
+      // the events cannot be cancelled; zooming as well would fight it.
+      if (!e.cancelable) return;
+      e.preventDefault();
+      const t = e.touches;
+      setChatZoom(
+        (startZoom * distance(t)) / startDistance,
+        focal((t[0].clientY + t[1].clientY) / 2),
+      );
+    },
+    { passive: false },
+  );
+  const end = (e: TouchEvent) => {
+    if (!pinching || e.touches.length >= 2) return;
+    pinching = false;
+    saveChatZoomSoon();
+  };
+  el.addEventListener("touchend", end);
+  el.addEventListener("touchcancel", end);
+
+  // Desktop: ctrl+wheel, which is also what a trackpad pinch arrives as.
+  el.addEventListener(
+    "wheel",
+    (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setChatZoom(chatZoom * Math.exp(-e.deltaY / 200), focal(e.clientY));
+      saveChatZoomSoon();
+    },
+    { passive: false },
   );
 }
 
 function openPreferences(): void {
   $<HTMLSelectElement>("set-theme").value = theme;
-  $<HTMLSelectElement>("set-chat-font-size").value = String(chatFontSize);
   $<HTMLInputElement>("set-send-on-enter").checked = sendOnEnter;
   $<HTMLInputElement>("set-maintenance").checked = maintenanceMode;
   $<HTMLInputElement>("set-experimental").checked = experimentalFeatures;
@@ -4373,15 +4475,6 @@ function chooseTheme(choice: ThemeChoice): void {
   void api.saveTheme(choice).catch((err) => {
     void api.logClient("ui", `could not save the theme: ${err}`);
     toast("Theme applied, but not saved");
-  });
-}
-
-function chooseChatFontSize(size: ChatFontSize): void {
-  chatFontSize = size;
-  applyChatFontSize();
-  void api.saveChatFontSize(size).catch((err) => {
-    void api.logClient("ui", `could not save chat font size: ${err}`);
-    toast("Font size applied, but not saved");
   });
 }
 
@@ -4987,6 +5080,20 @@ function wireEvents(): void {
     void openPrettySessionFile();
   });
   $("chat-menu-filters").addEventListener("click", () => openFiltersModal());
+  $("chat-menu-zoom").addEventListener("click", () => openChatZoomDialog());
+  $("zoom-range").addEventListener("input", (e) => {
+    setChatZoomPercent(Number((e.target as HTMLInputElement).value));
+  });
+  $("zoom-out").addEventListener("click", () =>
+    setChatZoomPercent(chatZoomPercent() - 10),
+  );
+  $("zoom-in").addEventListener("click", () =>
+    setChatZoomPercent(chatZoomPercent() + 10),
+  );
+  $("zoom-reset").addEventListener("click", () => setChatZoomPercent(100));
+  $("zoom-close").addEventListener("click", () =>
+    show($("modal-chat-zoom"), false),
+  );
   $("chat-menu-details").addEventListener("click", () => {
     closeChatMenu();
     openChatSessionDetails();
@@ -5050,6 +5157,7 @@ function wireEvents(): void {
   $("scroll-bottom").addEventListener("click", () =>
     transcript.scrollToBottom(true),
   );
+  installPinchZoom($("transcript"));
   $("context-pill").addEventListener("click", () => openContextModal());
   $("cost-pill").addEventListener("click", () => openContextModal());
   for (const id of ["ctx-codex-usage-note", "ctx-claude-usage-note"]) {
@@ -5181,11 +5289,6 @@ function wireEvents(): void {
   $<HTMLSelectElement>("set-theme").addEventListener("change", (e) => {
     chooseTheme((e.target as HTMLSelectElement).value as ThemeChoice);
   });
-  $<HTMLSelectElement>("set-chat-font-size").addEventListener("change", (e) => {
-    chooseChatFontSize(
-      Number((e.target as HTMLSelectElement).value) as ChatFontSize,
-    );
-  });
   $<HTMLInputElement>("set-send-on-enter").addEventListener("change", (e) => {
     chooseSendOnEnter((e.target as HTMLInputElement).checked);
   });
@@ -5303,8 +5406,11 @@ async function main(): Promise<void> {
   applyTranscriptFilters();
   theme = persisted.theme;
   applyTheme();
-  chatFontSize = persisted.chatFontSize;
-  applyChatFontSize();
+  chatZoom = Math.min(
+    CHAT_ZOOM_MAX,
+    Math.max(CHAT_ZOOM_MIN, persisted.chatZoom || 1),
+  );
+  applyChatZoom();
   sendOnEnter = persisted.sendOnEnter;
   applySendOnEnter();
   maintenanceMode = persisted.maintenanceMode;

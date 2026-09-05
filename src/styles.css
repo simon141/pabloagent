@@ -66,6 +66,7 @@
   --select-caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2398a0b3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --radius: 14px;
   --chat-font-size: 15px;
+  --chat-zoom: 1;
 
   --app-height: 100vh;
 
@@ -1097,6 +1098,9 @@ button {
  */
 .transcript > * {
   flex: 0 0 auto;
+  /* Pinch zoom. `zoom` reflows each entry at the new size; a transform would
+   * only scale the pixels and leave the layout at the old width. */
+  zoom: var(--chat-zoom);
 }
 /* Code, diffs, shell output and error text follow the chat font size like
  * every other transcript entry; `.mono` elsewhere keeps its fixed size. */
@@ -2297,6 +2301,36 @@ button {
 }
 .modal-sheet.tall {
   height: min(86vh, 100%);
+}
+.zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.zoom-row .ghost {
+  flex: 0 0 auto;
+  width: 44px;
+  padding: 10px 0;
+  font-size: 20px;
+  line-height: 1;
+}
+.zoom-row input[type="range"] {
+  flex: 1 1 auto;
+  width: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  accent-color: var(--accent);
+}
+.zoom-row input[type="range"]:focus {
+  outline: none;
+}
+.zoom-value {
+  flex: 0 0 auto;
+  min-width: 44px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
 }
 .modal-sheet h2 {
   margin: 0;

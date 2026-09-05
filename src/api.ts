@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Harness } from "./harness";
 import type {
-  ChatFontSize,
   ClaudeModel,
   ConnectionInfo,
   ConnectOutcome,
@@ -45,8 +44,8 @@ export const clearTranscriptFilters = (harness: Harness) =>
 export const saveTheme = (theme: ThemeChoice) =>
   invoke<void>("save_theme", { theme });
 
-export const saveChatFontSize = (size: ChatFontSize) =>
-  invoke<void>("save_chat_font_size", { size });
+export const saveChatZoom = (zoom: number) =>
+  invoke<void>("save_chat_zoom", { zoom });
 
 export const saveSendOnEnter = (on: boolean) =>
   invoke<void>("save_send_on_enter", { on });

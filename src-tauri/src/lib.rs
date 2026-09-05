@@ -156,9 +156,12 @@ fn save_theme(app: AppHandle, theme: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn save_chat_font_size(app: AppHandle, size: u8) -> Result<(), String> {
+fn save_chat_zoom(app: AppHandle, zoom: f64) -> Result<(), String> {
+    if !zoom.is_finite() || zoom <= 0.0 {
+        return Err("chat zoom must be a positive number".into());
+    }
     let mut persisted = store::load(&app);
-    persisted.chat_font_size = size;
+    persisted.chat_zoom = zoom;
     store::save(&app, &persisted)
 }
 
@@ -1026,7 +1029,7 @@ pub fn run() {
             save_transcript_filters,
             clear_transcript_filters,
             save_theme,
-            save_chat_font_size,
+            save_chat_zoom,
             save_send_on_enter,
             save_maintenance_mode,
             save_experimental_features,

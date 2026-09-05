@@ -64,7 +64,7 @@ pub struct PersistedState {
     pub agent_defaults: std::collections::HashMap<String, NewChatDefaults>,
     pub transcript_filters: std::collections::HashMap<String, Vec<String>>,
     pub theme: String,
-    pub chat_font_size: u8,
+    pub chat_zoom: f64,
     pub send_on_enter: bool,
     pub maintenance_mode: bool,
     pub favorites_collapsed: bool,
@@ -81,7 +81,7 @@ impl Default for PersistedState {
             agent_defaults: Default::default(),
             transcript_filters: Default::default(),
             theme: "system".into(),
-            chat_font_size: 15,
+            chat_zoom: 1.0,
             send_on_enter: false,
             maintenance_mode: false,
             favorites_collapsed: false,
@@ -267,7 +267,7 @@ mod tests {
     #[test]
     fn current_state_round_trips() {
         let state = PersistedState {
-            chat_font_size: 17,
+            chat_zoom: 1.5,
             send_on_enter: true,
             favorites_collapsed: true,
             experimental_features: true,
@@ -275,7 +275,7 @@ mod tests {
         };
         let restored: PersistedState =
             serde_json::from_str(&serde_json::to_string(&state).unwrap()).unwrap();
-        assert_eq!(restored.chat_font_size, 17);
+        assert_eq!(restored.chat_zoom, 1.5);
         assert!(restored.send_on_enter);
         assert!(restored.favorites_collapsed);
         assert!(restored.experimental_features);
@@ -299,7 +299,7 @@ mod tests {
             )]
             .into(),
             theme: "dark".into(),
-            chat_font_size: 17,
+            chat_zoom: 1.5,
             ..PersistedState::default()
         };
         serde_json::from_str(&serde_json::to_string(&state).unwrap()).unwrap()
@@ -323,7 +323,7 @@ mod tests {
         let settings = restored.settings.unwrap();
         assert_eq!(settings.host, "box.example");
         assert_eq!(settings.pi_bin, "pi");
-        assert_eq!(restored.chat_font_size, 17);
+        assert_eq!(restored.chat_zoom, 1.5);
     }
 
     #[test]
@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn a_state_file_with_device_favorites_still_parses() {
         let state = PersistedState {
-            chat_font_size: 17,
+            chat_zoom: 1.5,
             ..PersistedState::default()
         };
         let mut json: serde_json::Value =
@@ -360,6 +360,6 @@ mod tests {
             }]),
         );
         let restored: PersistedState = serde_json::from_value(json).unwrap();
-        assert_eq!(restored.chat_font_size, 17);
+        assert_eq!(restored.chat_zoom, 1.5);
     }
 }

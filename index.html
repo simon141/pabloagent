@@ -465,6 +465,15 @@
           <span id="chat-menu-filters-count" class="chat-menu-note"></span>
         </button>
         <button
+          id="chat-menu-zoom"
+          type="button"
+          class="chat-menu-item"
+          role="menuitem"
+        >
+          <span>Text size…</span>
+          <span id="chat-menu-zoom-note" class="chat-menu-note"></span>
+        </button>
+        <button
           id="chat-menu-details"
           type="button"
           class="chat-menu-item"
@@ -513,6 +522,36 @@
       </div>
     </div>
 
+    <!-- The same zoom a pinch on the chat sets; applied live so the chat behind
+         the scrim shows the result. -->
+    <div id="modal-chat-zoom" class="modal" hidden>
+      <div class="modal-sheet">
+        <h2>Text size</h2>
+        <div class="zoom-row">
+          <button id="zoom-out" type="button" class="ghost" aria-label="Smaller">−</button>
+          <input
+            id="zoom-range"
+            type="range"
+            min="50"
+            max="250"
+            step="5"
+            aria-label="Chat text size"
+          />
+          <button id="zoom-in" type="button" class="ghost" aria-label="Larger">+</button>
+          <span id="zoom-value" class="zoom-value">100%</span>
+        </div>
+        <span class="hint"
+          >Scales every message, card and code block in every chat, and is kept
+          on this device. Pinching the chat with two fingers does the same; on a
+          desktop, hold Ctrl and scroll.</span
+        >
+        <div class="modal-actions">
+          <button id="zoom-reset" type="button" class="ghost">Reset to 100%</button>
+          <button id="zoom-close" type="button" class="primary">Done</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Applied as they are changed rather than on a Done button, so the only
          action here closes the dialog. -->
     <div id="modal-preferences" class="modal" hidden>
@@ -528,21 +567,6 @@
           <span class="hint"
             >Kept on this device only. The OS default follows the phone's own
             light or dark setting, including while the app is open.</span
-          >
-        </label>
-        <label
-          >Chat bubble text size
-          <select id="set-chat-font-size">
-            <option value="8">8px</option>
-            <option value="9">9px</option>
-            <option value="10">10px</option>
-            <option value="12">12px</option>
-            <option value="15">15px (Default)</option>
-            <option value="17">17px</option>
-          </select>
-          <span class="hint"
-            >Applies to messages in every chat and is kept when the app is
-            reopened.</span
           >
         </label>
         <!-- A server path, unlike everything else in this dialog. -->

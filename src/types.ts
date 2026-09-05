@@ -29,8 +29,6 @@ export interface NewChatDefaults {
 
 export type ThemeChoice = "system" | "light" | "dark";
 
-export type ChatFontSize = 8 | 9 | 10 | 12 | 15 | 17;
-
 export interface PersistedState {
   settings: SshSettings | null;
   knownHosts: Record<string, KnownHost>;
@@ -39,7 +37,7 @@ export interface PersistedState {
 
   transcriptFilters: Record<string, string[]>;
   theme: ThemeChoice;
-  chatFontSize: ChatFontSize;
+  chatZoom: number;
   sendOnEnter: boolean;
   maintenanceMode: boolean;
   favoritesCollapsed: boolean;
