@@ -499,6 +499,62 @@ const OPENCODE_CACHE_DIR: &str = "${XDG_CACHE_HOME:-$HOME/.cache}/pabloagent/ope
 // writes beside it.
 const PI_NAME_TAIL_BYTES: usize = 64 * 1024;
 
+// Reads the tails of every pi session in the listing at once. `tail` names each
+// file it was given, and those paths arrived as arguments, so no path is ever
+// quoted into a command string. The name is emitted first because a path may
+// contain a tab and JSON may not.
+const PI_NAMES_AWK: &str = r#"
+/^==> / && /<==$/ { path = substr($0, 5, length($0) - 8); next }
+path != "" && /^\{[ \t]*"type"[ \t]*:[ \t]*"session_info"/ { found[path] = $0 }
+END { for (p in found) printf "%s\t%s\n", substr(found[p], 1, 1200), p }
+"#;
+
+// One process for the whole listing, reading each session file once. The shape
+// this replaced cost a `head`, a `grep` and a `head -c` per field per row, and
+// read the head of every claude record three times over. Run under `LC_ALL=C`,
+// where awk indexes bytes, so the caps below stay the byte caps they were.
+// The harness and timestamp are split off by hand rather than with `-F`,
+// because a session path may contain a tab and is therefore taken whole.
+const SESSION_FIELDS_AWK: &str = r#"
+function head_cap(s, n) { return length(s) > n ? substr(s, 1, n) : s }
+function tail_cap(s, n) { return length(s) > n ? substr(s, length(s) - n + 1) : s }
+BEGIN {
+  while ((getline line < names) > 0) {
+    i = index(line, "\t")
+    if (i > 0) pi_name[substr(line, i + 1)] = substr(line, 1, i - 1)
+  }
+  close(names)
+}
+{
+  i = index($0, "\t"); h = substr($0, 1, i - 1); rest = substr($0, i + 1)
+  i = index(rest, "\t"); mt = substr(rest, 1, i - 1); path = substr(rest, i + 1)
+  sub(/\..*/, "", mt)
+  printf "PT_S\t%s\t%s\t%s\n", h, mt, path
+  meta = ""; prompt = ""; title = ""; n = 0
+  while (n < 80 && (getline line < path) > 0) {
+    n++
+    if (h == "claude") {
+      if (meta == "" && n <= 40 && line ~ /"cwd"[ \t]*:/) meta = tail_cap(line, 2000)
+      if (title == "" && n <= 40 && line ~ /"type"[ \t]*:[ \t]*"ai-title"/) title = head_cap(line, 1200)
+      if (prompt == "" && line ~ /"promptSource"[ \t]*:/) prompt = head_cap(line, 1200)
+      if (meta != "" && title != "" && prompt != "") break
+    } else if (h == "pi") {
+      if (n == 1) meta = head_cap(line, 4000)
+      if (line ~ /"role"[ \t]*:[ \t]*"user"/) { prompt = head_cap(line, 1200); break }
+    } else {
+      if (n == 1) meta = head_cap(line, 4000)
+      if (n > 60) break
+      if (line ~ /"type"[ \t]*:[ \t]*"(user_message|UserMessage)"/) { prompt = head_cap(line, 1200); break }
+    }
+  }
+  close(path)
+  printf "PT_M\t%s\n", meta
+  printf "PT_P\t%s\n", prompt
+  if (h == "claude") printf "PT_A\t%s\n", title
+  if (h == "pi") printf "PT_PN\t%s\n", pi_name[path]
+}
+"#;
+
 pub fn list_sessions_command(opencode_bin: &str, with_favorites: bool) -> String {
     let turns = turn_records_command();
     let opencode = quote(opencode_bin);
@@ -514,6 +570,10 @@ pub fn list_sessions_command(opencode_bin: &str, with_favorites: bool) -> String
          {turns}\
          {meta}\
          {favorites}\
+         rows=\"${{TMPDIR:-/tmp}}/pabloagent-rows.$$\"\n\
+         names=\"${{TMPDIR:-/tmp}}/pabloagent-names.$$\"\n\
+         trap 'rm -f \"$rows\" \"$names\"' EXIT INT TERM\n\
+         : >\"$names\"\n\
          {{\n\
          d=\"${{CODEX_HOME:-$HOME/.codex}}/sessions\"\n\
          [ -d \"$d\" ] && find \"$d\" -type f -name 'rollout-*.jsonl' \
@@ -526,31 +586,14 @@ pub fn list_sessions_command(opencode_bin: &str, with_favorites: bool) -> String
          [ -d \"$q\" ] && find \"$q\" -mindepth 2 -maxdepth 2 -type f \
            -name '*_*.jsonl' \
            -printf 'pi\\t%T@\\t%p\\n' 2>/dev/null\n\
-         }} | sort -t\"$tab\" -k2,2 -rn | head -n {SESSION_LIMIT} \
-           | while IFS=\"$tab\" read -r h mt path; do\n\
-           printf 'PT_S\\t%s\\t%s\\t%s\\n' \"$h\" \"${{mt%%.*}}\" \"$path\"\n\
-           if [ \"$h\" = claude ]; then\n\
-             printf 'PT_M\\t'; head -n 40 \"$path\" 2>/dev/null \
-               | grep -m1 -E '\"cwd\"[[:space:]]*:' | tail -c 2000 || true; printf '\\n'\n\
-             printf 'PT_P\\t'; head -n 80 \"$path\" 2>/dev/null \
-               | grep -m1 -E '\"promptSource\"[[:space:]]*:' | head -c 1200 || true; printf '\\n'\n\
-             printf 'PT_A\\t'; head -n 40 \"$path\" 2>/dev/null \
-               | grep -m1 -E '\"type\"[[:space:]]*:[[:space:]]*\"ai-title\"' | head -c 1200 || true; printf '\\n'\n\
-           elif [ \"$h\" = pi ]; then\n\
-             printf 'PT_M\\t'; head -n 1 \"$path\" 2>/dev/null | head -c 4000; printf '\\n'\n\
-             printf 'PT_P\\t'; head -n 80 \"$path\" 2>/dev/null \
-               | grep -m1 -E '\"role\"[[:space:]]*:[[:space:]]*\"user\"' \
-               | head -c 1200 || true; printf '\\n'\n\
-             printf 'PT_PN\\t'; tail -c {PI_NAME_TAIL_BYTES} \"$path\" 2>/dev/null \
-               | grep -E '^\\{{[[:space:]]*\"type\"[[:space:]]*:[[:space:]]*\"session_info\"' \
-               | tail -n 1 | head -c 1200 || true; printf '\\n'\n\
-           else\n\
-             printf 'PT_M\\t'; head -n 1 \"$path\" 2>/dev/null | head -c 4000; printf '\\n'\n\
-             printf 'PT_P\\t'; head -n 60 \"$path\" 2>/dev/null \
-               | grep -m1 -E '\"type\"[[:space:]]*:[[:space:]]*\"(user_message|UserMessage)\"' \
-               | head -c 1200 || true; printf '\\n'\n\
-           fi\n\
-         done\n\
+         }} | sort -t\"$tab\" -k2,2 -rn | head -n {SESSION_LIMIT} >\"$rows\"\n\
+         set --\n\
+         while IFS=\"$tab\" read -r h mt path; do\n\
+           [ \"$h\" = pi ] && set -- \"$@\" \"$path\"\n\
+         done <\"$rows\"\n\
+         [ $# -gt 0 ] && tail -c {PI_NAME_TAIL_BYTES} -- \"$@\" /dev/null 2>/dev/null \
+           | LC_ALL=C awk '{PI_NAMES_AWK}' >\"$names\"\n\
+         LC_ALL=C awk -v names=\"$names\" '{SESSION_FIELDS_AWK}' <\"$rows\"\n\
          ocdb=\"${{OPENCODE_DB:-${{XDG_DATA_HOME:-$HOME/.local/share}}/opencode/opencode.db}}\"\n\
          occache=\"{OPENCODE_CACHE_DIR}\"\n\
          if [ -f \"$ocdb\" ]; then\n\
@@ -592,7 +635,7 @@ fn session_meta_records_command() -> String {
            | sort -t\"$tab\" -k1,1 -rn | head -n {SESSION_META_LIMIT} \
            | while IFS=\"$tab\" read -r _mt name; do\n\
            for k in closed read label name; do\n\
-             v=$(tr -d '\\n' <\"$sm/$name/$k\" 2>/dev/null)\n\
+             v=; IFS= read -r v 2>/dev/null <\"$sm/$name/$k\"\n\
              [ -n \"$v\" ] && printf 'PT_C\\t%s\\t%s\\t%s\\n' \"$name\" \"$k\" \"$v\"\n\
            done\n\
          done\n"
@@ -952,6 +995,10 @@ pub fn delete_draft_prompt_command(dir: &str, id: &str) -> Result<String, String
     Ok(format!("d={d}\nrm -f -- \"$d\"/{name}"))
 }
 
+// Sidecar values are read with the shell's own `read`: the picker polls this,
+// and `$(tr …)` costs a fork and an exec per value. Each variable is cleared
+// first because a missing file leaves `read` with nothing to do, and the
+// silencer precedes the redirect or the shell reports the missing file itself.
 fn turn_records_command() -> String {
     format!(
         "t=\"${{XDG_CACHE_HOME:-$HOME/.cache}}/pabloagent/turns\"\n\
@@ -960,26 +1007,26 @@ fn turn_records_command() -> String {
            | sort -t\"$tab\" -k1,1 -rn | head -n {TURN_LIMIT} \
            | while IFS=\"$tab\" read -r mt dir; do\n\
            key=${{dir##*/}}\n\
-           st=$(tr -d '\\n' <\"$dir/status\" 2>/dev/null)\n\
+           st=; IFS= read -r st 2>/dev/null <\"$dir/status\"\n\
            run=false\n\
            if [ -z \"$st\" ]; then\n\
              if command -v tmux >/dev/null 2>&1 && \
                 tmux has-session -t \"pabloagent-$key\" 2>/dev/null; then\n\
                run=true\n\
              else\n\
-               pid=$(tr -d '\\n' <\"$dir/pid\" 2>/dev/null)\n\
+               pid=; IFS= read -r pid 2>/dev/null <\"$dir/pid\"\n\
                [ -n \"$pid\" ] && kill -0 \"$pid\" 2>/dev/null && run=true\n\
              fi\n\
            fi\n\
-           id=$(tr -d '\\n' <\"$dir/resolved_thread\" 2>/dev/null)\n\
-           [ -n \"$id\" ] || id=$(tr -d '\\n' <\"$dir/thread\" 2>/dev/null)\n\
-           h=$(tr -d '\\n' <\"$dir/harness\" 2>/dev/null)\n\
+           id=; IFS= read -r id 2>/dev/null <\"$dir/resolved_thread\"\n\
+           [ -n \"$id\" ] || IFS= read -r id 2>/dev/null <\"$dir/thread\"\n\
+           h=; IFS= read -r h 2>/dev/null <\"$dir/harness\"\n\
            if [ -z \"$id\" ] && {{ [ \"$h\" = claude ] || [ \"$h\" = pi ]; }}; then\n\
-             id=$(tr -d '\\n' <\"$dir/session\" 2>/dev/null)\n\
+             IFS= read -r id 2>/dev/null <\"$dir/session\"\n\
            fi\n\
+           ro=; IFS= read -r ro 2>/dev/null <\"$dir/rollout\"\n\
            printf 'PT_T\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \"$key\" \"$h\" \
-             \"${{mt%%.*}}\" \"$run\" \"${{st:--}}\" \"$id\" \
-             \"$(tr -d '\\n' <\"$dir/rollout\" 2>/dev/null)\"\n\
+             \"${{mt%%.*}}\" \"$run\" \"${{st:--}}\" \"$id\" \"$ro\"\n\
          done\n"
     )
 }
@@ -2370,11 +2417,10 @@ mod tests {
 
         let cmd = list_sessions_command("opencode", false);
         assert!(cmd.contains(r#""ai-title""#), "{cmd}");
-        // The title probe must stay a bounded read, never a whole-file grep.
+        // The title probe must stay a bounded read, never a whole-file scan.
         assert!(
             cmd.contains(
-                "head -n 40 \"$path\" 2>/dev/null \
-               | grep -m1 -E '\"type\"[[:space:]]*:[[:space:]]*\"ai-title\"'"
+                r#"if (title == "" && n <= 40 && line ~ /"type"[ \t]*:[ \t]*"ai-title"/)"#
             ),
             "{cmd}"
         );
@@ -2665,16 +2711,16 @@ mod tests {
 
         let cmd = list_sessions_command("opencode", false);
         assert!(cmd.contains("PT_PN"), "{cmd}");
-        // The name probe must stay a bounded read, never a whole-file grep, and
+        // The name probe must stay a bounded read, never a whole-file scan, and
         // must match the entry only where pi writes it: at the head of a line.
+        assert!(cmd.contains("tail -c 65536 -- \"$@\" /dev/null"), "{cmd}");
         assert!(
-            cmd.contains(
-                "tail -c 65536 \"$path\" 2>/dev/null \
-               | grep -E '^\\{[[:space:]]*\"type\"[[:space:]]*:[[:space:]]*\"session_info\"' \
-               | tail -n 1"
-            ),
+            cmd.contains(r#"/^\{[ \t]*"type"[ \t]*:[ \t]*"session_info"/"#),
             "{cmd}"
         );
+        // Every pi path in the listing is read by that one `tail`, as arguments,
+        // so no session path is ever quoted into a command string.
+        assert!(!cmd.contains("tail -c 65536 \"$path\""), "{cmd}");
         assert!(cmd.contains("for k in closed read label name"), "{cmd}");
     }
 
@@ -2979,6 +3025,47 @@ mod tests {
         assert!(cmd.contains("PT_T"), "{cmd}");
         // Bounded, or a long-lived install pays for every turn it ever ran.
         assert!(cmd.contains(&format!("head -n {TURN_LIMIT}")), "{cmd}");
+    }
+
+    #[test]
+    fn sidecar_values_are_read_without_a_subshell() {
+        let cmd = list_sessions_command("opencode", true);
+        // The picker polls this: a command substitution per value costs a fork
+        // and an exec, over every turn and every session record on the host.
+        assert!(
+            !cmd.contains("$(tr -d"),
+            "reading a sidecar value must not cost a process: {cmd}"
+        );
+        // The silencer precedes the redirect, or the shell reports the missing
+        // file itself, before the redirect meant to silence it takes effect.
+        assert!(
+            cmd.contains("IFS= read -r st 2>/dev/null <\"$dir/status\""),
+            "{cmd}"
+        );
+        assert!(
+            cmd.contains("v=; IFS= read -r v 2>/dev/null <\"$sm/$name/$k\""),
+            "the value is cleared first, or a missing file keeps the last one: {cmd}"
+        );
+    }
+
+    #[test]
+    fn a_session_row_is_read_in_one_pass_under_byte_caps() {
+        let cmd = list_sessions_command("opencode", false);
+        // awk indexes characters unless the locale says otherwise, and every cap
+        // below is the byte cap it replaced.
+        assert!(cmd.contains("LC_ALL=C awk"), "{cmd}");
+        assert!(cmd.contains("head_cap(line, 4000)"), "{cmd}");
+        assert!(cmd.contains("tail_cap(line, 2000)"), "{cmd}");
+        // One reader for the row, bounded, whatever the harness wrote.
+        assert_eq!(
+            cmd.matches("getline line < path").count(),
+            1,
+            "a field must not cost its own read: {cmd}"
+        );
+        assert!(
+            cmd.contains("while (n < 80 && (getline line < path) > 0)"),
+            "{cmd}"
+        );
     }
 
     #[test]
@@ -3420,7 +3507,7 @@ mod tests {
             "pi rows must enter the merged sort: {cmd}"
         );
         assert!(
-            cmd.contains(r#""role"[[:space:]]*:[[:space:]]*"user""#),
+            cmd.contains(r#""role"[ \t]*:[ \t]*"user""#),
             "a pi preview is the first user message: {cmd}"
         );
     }
