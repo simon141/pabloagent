@@ -110,3 +110,10 @@ and leaves the loose executable unstamped. The store reads that stamp: the
 installed build keeps `pabloagent.json` in app data and the portable build keeps
 it beside the executable. Never ship the executable extracted from the installer
 as the portable build.
+
+### Versioned releases
+
+- If the user does not provide a version, ask whether they want a minor or patch increment. Never guess which increment to use.
+- Keep `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock` and `src-tauri/tauri.conf.json` on the release version.
+- Run the release checks before committing. Commit the version bump, push `main`, then push the matching `v<version>` tag.
+- Wait for the tag workflow and verify that GitHub published the non-draft release and all platform assets.
