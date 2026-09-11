@@ -32,7 +32,14 @@ try {
   });
   assert.equal(modelsFor("codex")[0].id, "");
   assert.equal(modelById("codex", "gpt-5.6-sol").id, "gpt-5.6-sol");
-  for (const harness of ["claude", "opencode", "pi"])
+  for (const id of [
+    "opencode/gpt-6-astra",
+    "opencode/gpt-5.6-sol",
+    "opencode/gpt-5.6-terra",
+    "opencode/gpt-5.6-luna",
+  ])
+    assert.equal(modelById("opencode", id).id, id);
+  for (const harness of ["claude", "pi"])
     assert.ok(!modelsFor(harness).some((model) => model.id === "gpt-6-astra"));
   console.log("Model checks passed");
 } finally {

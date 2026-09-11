@@ -83,8 +83,32 @@ const OPENCODE_MODELS: ModelChoice[] = [
     defaultEffort: "",
   },
   {
+    id: "opencode/gpt-6-astra",
+    label: "GPT-6-Astra (OpenCode Zen)",
+    efforts: OPENCODE_EFFORTS,
+    defaultEffort: "",
+  },
+  {
     id: "openai/gpt-5.6-sol",
     label: "GPT-5.6-Sol (OpenAI)",
+    efforts: OPENCODE_EFFORTS,
+    defaultEffort: "",
+  },
+  {
+    id: "opencode/gpt-5.6-sol",
+    label: "GPT-5.6-Sol (OpenCode Zen)",
+    efforts: OPENCODE_EFFORTS,
+    defaultEffort: "",
+  },
+  {
+    id: "opencode/gpt-5.6-terra",
+    label: "GPT-5.6-Terra (OpenCode Zen)",
+    efforts: OPENCODE_EFFORTS,
+    defaultEffort: "",
+  },
+  {
+    id: "opencode/gpt-5.6-luna",
+    label: "GPT-5.6-Luna (OpenCode Zen)",
     efforts: OPENCODE_EFFORTS,
     defaultEffort: "",
   },
