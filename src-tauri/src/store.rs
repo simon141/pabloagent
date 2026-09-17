@@ -55,6 +55,31 @@ pub struct NewChatDefaults {
     pub permission_mode: String,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EnterBehavior {
+    Send,
+    #[default]
+    Newline,
+    Auto,
+}
+
+fn deserialize_enter_behavior<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<EnterBehavior, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Saved {
+        Current(EnterBehavior),
+        Legacy(bool),
+    }
+    Ok(match Saved::deserialize(deserializer)? {
+        Saved::Current(behavior) => behavior,
+        Saved::Legacy(true) => EnterBehavior::Send,
+        Saved::Legacy(false) => EnterBehavior::Newline,
+    })
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PersistedState {
@@ -65,7 +90,8 @@ pub struct PersistedState {
     pub transcript_filters: std::collections::HashMap<String, Vec<String>>,
     pub theme: String,
     pub chat_zoom: f64,
-    pub send_on_enter: bool,
+    #[serde(alias = "sendOnEnter", deserialize_with = "deserialize_enter_behavior")]
+    pub enter_behavior: EnterBehavior,
     pub maintenance_mode: bool,
     pub favorites_collapsed: bool,
     pub experimental_features: bool,
@@ -82,7 +108,7 @@ impl Default for PersistedState {
             transcript_filters: Default::default(),
             theme: "system".into(),
             chat_zoom: 1.0,
-            send_on_enter: false,
+            enter_behavior: EnterBehavior::default(),
             maintenance_mode: false,
             favorites_collapsed: false,
             experimental_features: false,
@@ -268,7 +294,7 @@ mod tests {
     fn current_state_round_trips() {
         let state = PersistedState {
             chat_zoom: 1.5,
-            send_on_enter: true,
+            enter_behavior: EnterBehavior::Auto,
             favorites_collapsed: true,
             experimental_features: true,
             ..PersistedState::default()
@@ -276,9 +302,40 @@ mod tests {
         let restored: PersistedState =
             serde_json::from_str(&serde_json::to_string(&state).unwrap()).unwrap();
         assert_eq!(restored.chat_zoom, 1.5);
-        assert!(restored.send_on_enter);
+        assert_eq!(restored.enter_behavior, EnterBehavior::Auto);
         assert!(restored.favorites_collapsed);
         assert!(restored.experimental_features);
+    }
+
+    #[test]
+    fn enter_behavior_migrates_checkbox_settings() {
+        for (on, expected) in [(true, EnterBehavior::Send), (false, EnterBehavior::Newline)] {
+            let mut json = saved_state();
+            json.as_object_mut().unwrap().remove("enterBehavior");
+            json["sendOnEnter"] = serde_json::json!(on);
+            let restored: PersistedState = serde_json::from_value(json).unwrap();
+            assert_eq!(restored.enter_behavior, expected);
+            assert_eq!(restored.settings.as_ref().unwrap().host, "box.example");
+            let saved = serde_json::to_value(restored).unwrap();
+            assert!(saved.get("sendOnEnter").is_none());
+        }
+    }
+
+    #[test]
+    fn enter_behavior_defaults_to_newline_and_round_trips_all_modes() {
+        let mut json = saved_state();
+        json.as_object_mut().unwrap().remove("enterBehavior");
+        let restored: PersistedState = serde_json::from_value(json).unwrap();
+        assert_eq!(restored.enter_behavior, EnterBehavior::Newline);
+        for mode in ["send", "newline", "auto"] {
+            let mut json = saved_state();
+            json["enterBehavior"] = serde_json::json!(mode);
+            let restored: PersistedState = serde_json::from_value(json).unwrap();
+            assert_eq!(
+                serde_json::to_value(restored).unwrap()["enterBehavior"],
+                mode
+            );
+        }
     }
 
     fn saved_state() -> serde_json::Value {

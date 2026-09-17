@@ -9,6 +9,7 @@ import {
 } from "@tauri-apps/plugin-notification";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import * as api from "./api";
+import { type ComposerDraft, composerDraft, enterSends } from "./composer";
 import {
   type ContextUsage,
   type CostFigure,
@@ -67,6 +68,7 @@ import type {
   Delivery,
   DownloadProgress,
   DraftPromptFile,
+  EnterBehavior,
   HostCapabilities,
   HostKeyPrompt,
   HostStats,
@@ -153,7 +155,7 @@ let theme: ThemeChoice = "system";
 const CHAT_ZOOM_MIN = 0.5;
 const CHAT_ZOOM_MAX = 2.5;
 let chatZoom = 1;
-let sendOnEnter = false;
+let enterBehavior: EnterBehavior = "newline";
 let experimentalFeatures = false;
 let maintenanceMode = false;
 let draftPromptsPath = "";
@@ -3095,7 +3097,7 @@ let pendingForwardCommitted = false;
 
 // Unsent composer text, kept per session so a draft typed in one chat never
 // shows in another. Memory only: closing the app discards drafts.
-const composerDrafts = new Map<string, string>();
+const composerDrafts = new Map<string, ComposerDraft>();
 
 function composerDraftKey(): string {
   return chat.threadId ? `${chat.harness}:${chat.threadId}` : "new";
@@ -3103,13 +3105,14 @@ function composerDraftKey(): string {
 
 function syncComposerDraft(value: string): void {
   const key = composerDraftKey();
-  if (value) composerDrafts.set(key, value);
+  if (value)
+    composerDrafts.set(key, composerDraft(value, composerDrafts.get(key)));
   else composerDrafts.delete(key);
 }
 
 function restoreComposerDraft(): void {
   const input = $<HTMLTextAreaElement>("composer-input");
-  input.value = composerDrafts.get(composerDraftKey()) ?? "";
+  input.value = composerDrafts.get(composerDraftKey())?.text ?? "";
   input.dispatchEvent(new Event("input"));
 }
 
@@ -3133,18 +3136,19 @@ let composerSending = false;
 async function sendFromComposer(text: string): Promise<void> {
   const input = $<HTMLTextAreaElement>("composer-input");
   const key = composerDraftKey();
+  const draft = composerDraft(text, composerDrafts.get(key));
   const seq = ++composerSendSeq;
   composerSending = true;
   input.value = "";
   input.dispatchEvent(new Event("input"));
   const started = await sendPrompt(text);
-  if (started) composerDrafts.delete(key);
   if (seq !== composerSendSeq) {
-    if (!started && !composerDrafts.has(key)) composerDrafts.set(key, text);
+    if (!started && !composerDrafts.has(key)) composerDrafts.set(key, draft);
     return;
   }
   composerSending = false;
   if (!started) {
+    if (draft.multiline) composerDrafts.set(composerDraftKey(), draft);
     const typed = input.value.trim();
     input.value = typed ? `${text}\n\n${typed}` : text;
     input.dispatchEvent(new Event("input"));
@@ -4462,7 +4466,7 @@ function installPinchZoom(el: HTMLElement): void {
 
 function openPreferences(): void {
   $<HTMLSelectElement>("set-theme").value = theme;
-  $<HTMLInputElement>("set-send-on-enter").checked = sendOnEnter;
+  $<HTMLSelectElement>("set-enter-behavior").value = enterBehavior;
   $<HTMLInputElement>("set-maintenance").checked = maintenanceMode;
   $<HTMLInputElement>("set-experimental").checked = experimentalFeatures;
   $<HTMLInputElement>("set-drafts-path").value = draftPromptsPath;
@@ -4478,16 +4482,26 @@ function chooseTheme(choice: ThemeChoice): void {
   });
 }
 
-function applySendOnEnter(): void {
-  $("composer").classList.toggle("multiline", !sendOnEnter);
+function composerEnterSends(): boolean {
+  return enterSends(
+    enterBehavior,
+    composerDrafts.get(composerDraftKey())?.multiline ?? false,
+  );
 }
 
-function chooseSendOnEnter(on: boolean): void {
-  sendOnEnter = on;
-  applySendOnEnter();
-  void api.saveSendOnEnter(on).catch((err) => {
-    void api.logClient("ui", `could not save send on enter: ${err}`);
-    toast("Send on enter changed, but not saved");
+function applyEnterBehavior(): void {
+  $("composer").classList.toggle("multiline", !composerEnterSends());
+  const input = $<HTMLTextAreaElement>("composer-input");
+  input.style.height = "auto";
+  input.style.height = `${Math.min(input.scrollHeight, 140)}px`;
+}
+
+function chooseEnterBehavior(behavior: EnterBehavior): void {
+  enterBehavior = behavior;
+  applyEnterBehavior();
+  void api.saveEnterBehavior(behavior).catch((err) => {
+    void api.logClient("ui", `could not save enter behavior: ${err}`);
+    toast("Enter key behavior changed, but not saved");
   });
 }
 
@@ -5196,13 +5210,9 @@ function wireEvents(): void {
   $("openfile-cancel").addEventListener("click", closeFileChooser);
 
   const input = $<HTMLTextAreaElement>("composer-input");
-  const autoGrow = () => {
-    input.style.height = "auto";
-    input.style.height = `${Math.min(input.scrollHeight, 140)}px`;
-  };
   input.addEventListener("input", () => {
-    autoGrow();
     syncComposerDraft(input.value);
+    applyEnterBehavior();
   });
   input.addEventListener("focus", () => {
     // Give the IME a beat to open before chasing the bottom.
@@ -5213,7 +5223,7 @@ function wireEvents(): void {
       e.key !== "Enter" ||
       e.isComposing ||
       e.shiftKey ||
-      (!sendOnEnter && !(e.ctrlKey || e.metaKey))
+      (!composerEnterSends() && !(e.ctrlKey || e.metaKey))
     ) {
       return;
     }
@@ -5289,8 +5299,8 @@ function wireEvents(): void {
   $<HTMLSelectElement>("set-theme").addEventListener("change", (e) => {
     chooseTheme((e.target as HTMLSelectElement).value as ThemeChoice);
   });
-  $<HTMLInputElement>("set-send-on-enter").addEventListener("change", (e) => {
-    chooseSendOnEnter((e.target as HTMLInputElement).checked);
+  $<HTMLSelectElement>("set-enter-behavior").addEventListener("change", (e) => {
+    chooseEnterBehavior((e.target as HTMLSelectElement).value as EnterBehavior);
   });
   $<HTMLInputElement>("set-maintenance").addEventListener("change", (e) => {
     chooseMaintenanceMode((e.target as HTMLInputElement).checked);
@@ -5411,8 +5421,8 @@ async function main(): Promise<void> {
     Math.max(CHAT_ZOOM_MIN, persisted.chatZoom || 1),
   );
   applyChatZoom();
-  sendOnEnter = persisted.sendOnEnter;
-  applySendOnEnter();
+  enterBehavior = persisted.enterBehavior;
+  applyEnterBehavior();
   maintenanceMode = persisted.maintenanceMode;
   renderDrawerMaintenanceItems();
   experimentalFeatures = persisted.experimentalFeatures;

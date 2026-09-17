@@ -28,6 +28,7 @@ export interface NewChatDefaults {
 }
 
 export type ThemeChoice = "system" | "light" | "dark";
+export type EnterBehavior = "send" | "newline" | "auto";
 
 export interface PersistedState {
   settings: SshSettings | null;
@@ -38,7 +39,7 @@ export interface PersistedState {
   transcriptFilters: Record<string, string[]>;
   theme: ThemeChoice;
   chatZoom: number;
-  sendOnEnter: boolean;
+  enterBehavior: EnterBehavior;
   maintenanceMode: boolean;
   favoritesCollapsed: boolean;
   experimentalFeatures: boolean;

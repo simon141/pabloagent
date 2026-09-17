@@ -7,6 +7,7 @@ import type {
   DownloadedFile,
   DownloadProgress,
   DraftPromptFile,
+  EnterBehavior,
   HostKeyPrompt,
   HostStats,
   NewChatDefaults,
@@ -47,8 +48,8 @@ export const saveTheme = (theme: ThemeChoice) =>
 export const saveChatZoom = (zoom: number) =>
   invoke<void>("save_chat_zoom", { zoom });
 
-export const saveSendOnEnter = (on: boolean) =>
-  invoke<void>("save_send_on_enter", { on });
+export const saveEnterBehavior = (behavior: EnterBehavior) =>
+  invoke<void>("save_enter_behavior", { behavior });
 
 export const saveMaintenanceMode = (on: boolean) =>
   invoke<void>("save_maintenance_mode", { on });

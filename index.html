@@ -585,14 +585,18 @@
             default.</span
           >
         </label>
-        <label class="filter-row">
-          <input type="checkbox" id="set-send-on-enter" />
-          <span class="filter-label">
-            <span>Send on enter</span>
-            <span class="filter-hint"
-              >Press Enter to send. Shift+Enter adds a new line.</span
-            >
-          </span>
+        <label
+          >Enter key
+          <select id="set-enter-behavior">
+            <option value="send">Enter to send</option>
+            <option value="newline">Enter for a new line</option>
+            <option value="auto">Auto</option>
+          </select>
+          <span class="hint"
+            >Auto sends until you add or paste a new line, then Enter adds new
+            lines until the message is sent or cleared. Shift+Enter always adds
+            a new line; Ctrl/Cmd+Enter sends.</span
+          >
         </label>
         <label class="filter-row">
           <input type="checkbox" id="set-experimental" />

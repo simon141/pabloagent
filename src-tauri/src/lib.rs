@@ -166,9 +166,9 @@ fn save_chat_zoom(app: AppHandle, zoom: f64) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn save_send_on_enter(app: AppHandle, on: bool) -> Result<(), String> {
+fn save_enter_behavior(app: AppHandle, behavior: store::EnterBehavior) -> Result<(), String> {
     let mut persisted = store::load(&app);
-    persisted.send_on_enter = on;
+    persisted.enter_behavior = behavior;
     store::save(&app, &persisted)
 }
 
@@ -1030,7 +1030,7 @@ pub fn run() {
             clear_transcript_filters,
             save_theme,
             save_chat_zoom,
-            save_send_on_enter,
+            save_enter_behavior,
             save_maintenance_mode,
             save_experimental_features,
             save_favorites_collapsed,
