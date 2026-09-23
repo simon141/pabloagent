@@ -1913,6 +1913,12 @@ function applyRollout(): void {
     rendered.set(item.id, key);
     transcript.upsert(item as ThreadItem);
   }
+  const ids = new Set(items.map((i) => i.id));
+  for (const id of rendered.keys()) {
+    if (ids.has(id)) continue;
+    rendered.delete(id);
+    transcript.remove(id);
+  }
   // One arrival retires one echo: two identical prompts, exactly what Resend
   // produces, must leave two bubbles.
   const arrivals = items.filter((i) => i.type === "userMessage");
@@ -2053,12 +2059,13 @@ async function readWholeRollout(
 }
 
 async function openSession(session: SessionSummary): Promise<void> {
-  const generation = ++chatGeneration;
+  let generation = ++chatGeneration;
   overlay("Opening session…");
   try {
     const slice = await readWholeRollout(session.path, session.harness);
     if (chatGeneration !== generation) return;
     resetChat();
+    generation = chatGeneration;
     // The harness comes from the session, never from the last dialog: a codex
     // rollout resumed with `claude -p` would fork a new session at best.
     setHarness(session.harness);
@@ -2132,6 +2139,7 @@ function ensureNotifyPermission(): Promise<boolean> {
 const POLL_INTERVAL_MS = 900;
 const POLL_FAILURES_ALLOWED = 20;
 const STOPPED_EXIT_CODE = 130;
+let stoppingKey: string | null = null;
 
 function turnFailureReason(harness: Harness): string {
   const permissionHint =
@@ -2233,7 +2241,7 @@ async function followTurn(
       adoptAiTitle(fresh);
       adoptPiName(fresh);
       applyRollout();
-      setTurnActive(true);
+      setTurnActive(true, stoppingKey === key ? "Stopping…" : undefined);
     }
 
     if (poll.truncated && poll.lineCount === 0) {
@@ -2257,12 +2265,19 @@ async function followTurn(
       // open something else in the meantime.
       const finished = chat.threadId;
       const info = harnessById(chat.harness);
-      if (poll.exitCode === null) {
+      if (stoppingKey === key) {
+        stoppingKey = null;
+        transcript.addSystem("Turn stopped");
+      } else if (poll.exitCode === null) {
         transcript.addError(
           `${info.agentName} ended without an exit status`,
           poll.stderr ||
             "The remote supervisor stopped without recording whether the turn succeeded. " +
               "Its output has been kept, but Pablo cannot report this turn as successful.",
+        );
+      } else if (poll.exitCode === STOPPED_EXIT_CODE) {
+        transcript.addSystem(
+          `${info.agentName} was stopped before it finished.`,
         );
       } else if (poll.exitCode !== 0) {
         transcript.addError(
@@ -2283,7 +2298,8 @@ async function followTurn(
       ) {
         markSessionRead(finished);
       }
-      if (pendingForwardCommitted) consumePendingForward();
+      if (pendingForwardCommitted && chatGeneration === generation)
+        consumePendingForward();
       return;
     }
     await sleep(POLL_INTERVAL_MS);
@@ -3041,14 +3057,16 @@ function sniffImageMime(base64: string, path: string): string | null {
 
 async function interruptTurn(): Promise<void> {
   const key = chat.turnKey;
-  if (!key) return;
+  if (!key || stoppingKey === key) return;
+  stoppingKey = key;
   setTurnActive(true, "Stopping…");
   try {
+    // `followTurn` reads the turn's last output and reports its end.
     await api.stopTurn(key);
-    setTurnActive(false);
-    transcript.addSystem("Turn stopped");
     showAlert("Session stopped", "The session was stopped successfully.");
   } catch (err) {
+    stoppingKey = null;
+    if (chat.turnKey !== key) return;
     setTurnActive(true);
     transcript.addError("Could not stop the turn", String(err));
   }
