@@ -28,6 +28,8 @@ const DEFAULT_HIDDEN: Partial<Record<Harness, readonly string[]>> = {
     "type:atis-latch",
     "type:attachment:batching_reminder_sent",
     "type:attachment:command_permissions",
+    "type:cost-state",
+    "type:attachment:date",
     "type:attachment:edited_text_file",
     "type:file-history-snapshot",
     "type:mode",
