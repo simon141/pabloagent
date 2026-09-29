@@ -237,6 +237,15 @@ append({"type": "user", "isSidechain": False, "toolUseResult": {"stdout": "hello
         "message": {"role": "user",
                     "content": [{"type": "tool_result", "tool_use_id": "toolu_1",
                                  "content": "hello", "is_error": False}]}})
+if "background-subagent" in prompt:
+    assistant({"type": "tool_use", "id": "toolu_agent", "name": "Agent",
+               "input": {"prompt": "finish work"}})
+    if os.environ.get("CLAUDE_CODE_DISABLE_BACKGROUND_TASKS") != "1":
+        raise SystemExit(0)
+    time.sleep(0.8)
+    append({"type": "user", "isSidechain": False,
+            "message": {"role": "user", "content": [{"type": "tool_result",
+                        "tool_use_id": "toolu_agent", "content": "subagent finished"}]}})
 if "sleep-forever" in prompt:
     time.sleep(600)
 time.sleep(0.4)
@@ -1398,6 +1407,32 @@ async fn a_codex_turn_runs_detached_and_its_rollout_streams_back_while_it_works(
 #[tokio::test(flavor = "multi_thread")]
 async fn a_claude_turn_runs_detached_and_its_transcript_streams_back_while_it_works() {
     a_turn_runs_detached("turn-claude", CLAUDE).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_claude_turn_waits_for_its_subagent_before_finishing() {
+    let Some(mut remote) = Remote::start("claude-subagent").await else {
+        return;
+    };
+    let request = TurnRequest {
+        prompt: "run a background-subagent".into(),
+        harness: Harness::Claude,
+        thread_id: String::new(),
+        cwd: remote.temp.display().to_string(),
+        model: String::new(),
+        effort: String::new(),
+        permission_mode: String::new(),
+        session_id: "8f14e45f-ceea-467a-9d0f-2b0d0d0d0d33".into(),
+    };
+    remote.start_turn("claudeagent1", &request).await.unwrap();
+    let (text, last, saw_partial) = remote.follow("claudeagent1").await;
+    remote.cleanup();
+    assert!(
+        saw_partial,
+        "the turn should be visible while the agent works"
+    );
+    assert_eq!(last.exit_code, Some(0), "{}", last.stderr);
+    assert!(text.contains("subagent finished"), "{text}");
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -554,6 +554,8 @@ run)
 	fi
 
 	if [ "$harness" = claude ]; then
+		# Print mode cannot deliver background task results after its process exits.
+		export CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1
 		# `--verbose` is what `--output-format stream-json` requires in print
 		# mode. The stream itself is only read for the session id: everything
 		# shown in the app comes from the transcript file claude writes.
