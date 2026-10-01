@@ -1631,6 +1631,18 @@ export class Transcript {
         const label = read
           ? summary?.replace(/^read(?:\s+|$)/i, "") || "file"
           : (summary ?? `${item.tool}`);
+        if (read && item.images?.length) {
+          this.renderCard(view, {
+            icon: "📖",
+            label: truncate(label, LABEL_MAX),
+            badge: badgeFor(item.status ?? "completed", item.durationMs),
+            body: "",
+            bodyEl: this.buildImages(item.images),
+            collapsible: false,
+            extraClass: "image-read",
+          });
+          break;
+        }
         const body = [
           `tool: ${item.namespace ? `${item.namespace}.` : ""}${item.tool}`,
           `input:\n${item.input ?? ""}`,

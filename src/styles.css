@@ -2746,6 +2746,9 @@ button {
 .bubble .role + .bubble-images {
   margin-top: 0;
 }
+.card.image-read .bubble-images {
+  margin-top: 9px;
+}
 .md .chat-img {
   margin: 8px 0;
 }
