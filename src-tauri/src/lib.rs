@@ -621,46 +621,49 @@ async fn rewind_session(
     Ok(())
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct RemoteFile {
-    base64: String,
-    size: u64,
-}
-
 #[tauri::command]
-async fn read_remote_file(state: State<'_, AppState>, path: String) -> Result<RemoteFile, String> {
-    let command = remote::read_remote_file_command(&path)?;
-    let mut guard = state.connected("reading a file").await?;
-    let connection = guard.as_mut().expect("checked");
-    let output = connection.run_ok("read remote file", &command).await?;
-    drop(guard);
-
-    if let Some(size) = output.lines().find_map(|l| l.strip_prefix("PT_TOOBIG\t")) {
-        return Err(format!(
-            "{path} is {} bytes — larger than the {} this app will fetch for an image",
-            size.trim(),
-            remote::REMOTE_FILE_MAX_BYTES
-        ));
-    }
-    let size = output
-        .lines()
-        .find_map(|l| l.strip_prefix("PT_SIZE\t"))
-        .and_then(|s| s.trim().parse::<u64>().ok())
-        .ok_or_else(|| format!("The server did not report a size for {path}"))?;
-    // Everything after the size line is the base64, emitted without newlines.
-    let base64 = output
-        .split_once('\n')
-        .map(|(_, rest)| rest.trim().to_string())
-        .unwrap_or_default();
-    if base64.is_empty() {
-        return Err(format!("{path} is empty"));
-    }
+async fn fetch_remote_image(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<String, String> {
+    let dir = download::dir(&cache_dir(&app)?, "images")?;
+    download::prune(&dir, download::IMAGE_KEEP);
+    let token = download::token_dir(&dir, &uuid::Uuid::new_v4().to_string())?;
+    let progress = download::Progress::default();
+    let fetched = download_into(
+        &state,
+        &progress,
+        &path,
+        remote::REMOTE_IMAGE_MAX_BYTES,
+        token.join("image"),
+    )
+    .await
+    .and_then(|(local, size)| {
+        let mut head = [0u8; 64];
+        let n = std::fs::File::open(&local)
+            .and_then(|mut f| std::io::Read::read(&mut f, &mut head))
+            .map_err(|e| format!("cannot read {local}: {e}"))?;
+        let ext = download::image_ext(&head[..n], &path)
+            .ok_or_else(|| format!("{path} is not an image this app can draw"))?;
+        let named = token.join(format!("image.{ext}"));
+        std::fs::rename(&local, &named).map_err(|e| format!("cannot name {local}: {e}"))?;
+        Ok((named.to_string_lossy().into_owned(), size))
+    });
+    let (local, size) = fetched.inspect_err(|_| {
+        let _ = std::fs::remove_dir_all(&token);
+    })?;
     state.diagnostics.push(
         "remote",
-        format!("read {size} bytes of {path} for an inline image"),
+        format!("fetched {path} ({size} bytes) for an inline image"),
     );
-    Ok(RemoteFile { base64, size })
+    Ok(local)
+}
+
+fn cache_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path()
+        .app_cache_dir()
+        .map_err(|e| format!("cannot resolve the app cache dir: {e}"))
 }
 
 #[derive(Serialize)]
@@ -678,13 +681,8 @@ async fn download_remote_file(
     path: String,
     token: String,
 ) -> Result<DownloadedFile, String> {
-    let command = remote::download_remote_file_command(&path)?;
-    let cache = app
-        .path()
-        .app_cache_dir()
-        .map_err(|e| format!("cannot resolve the app cache dir: {e}"))?;
-    let dir = download::dir(&cache)?;
-    download::prune(&dir);
+    let dir = download::dir(&cache_dir(&app)?, "downloads")?;
+    download::prune(&dir, download::DOWNLOAD_KEEP);
     let name = download::local_name(&path);
     let dest = download::token_dir(&dir, &token)?.join(&name);
 
@@ -693,7 +691,14 @@ async fn download_remote_file(
     }
     // Every exit from here on has to release the slot, so the work is wrapped
     // rather than returned from directly.
-    let result = download_into(&state, &command, &path, dest).await;
+    let result = download_into(
+        &state,
+        &state.download,
+        &path,
+        remote::REMOTE_DOWNLOAD_MAX_BYTES,
+        dest,
+    )
+    .await;
     state.download.end();
     let (local_path, size) = result?;
 
@@ -710,15 +715,17 @@ async fn download_remote_file(
 
 async fn download_into(
     state: &AppState,
-    command: &str,
+    progress: &download::Progress,
     remote_path: &str,
+    max: u64,
     dest: std::path::PathBuf,
 ) -> Result<(String, u64), String> {
-    let mut sink = download::Download::create(dest, &state.download)?;
+    let command = remote::download_remote_file_command(remote_path, max)?;
+    let mut sink = download::Download::create(dest, progress)?;
     let mut guard = state.connected("downloading a file").await?;
     let connection = guard.as_mut().expect("checked");
     let outcome = connection
-        .run_streamed("download remote file", command, &mut sink)
+        .run_streamed("download remote file", &command, &mut sink)
         .await;
     drop(guard);
 
@@ -772,9 +779,8 @@ async fn download_into(
             let size = *size;
             sink.discard();
             Err(format!(
-                "{remote_path} is {size} bytes — larger than the {} this app will \
-                 download in one go.",
-                remote::REMOTE_DOWNLOAD_MAX_BYTES
+                "{remote_path} is {size} bytes — larger than the {max} this app will \
+                 fetch in one go."
             ))
         }
         None => {
@@ -794,11 +800,7 @@ fn save_download(
     src: String,
     dest: String,
 ) -> Result<(), String> {
-    let cache = app
-        .path()
-        .app_cache_dir()
-        .map_err(|e| format!("cannot resolve the app cache dir: {e}"))?;
-    let downloads = download::dir(&cache)?
+    let downloads = download::dir(&cache_dir(&app)?, "downloads")?
         .canonicalize()
         .map_err(|e| format!("cannot resolve the download directory: {e}"))?;
     let src = std::path::Path::new(&src)
@@ -1054,7 +1056,7 @@ pub fn run() {
             read_rollout,
             delete_session,
             rewind_session,
-            read_remote_file,
+            fetch_remote_image,
             download_remote_file,
             save_download,
             open_saved_file,

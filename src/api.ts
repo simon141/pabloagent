@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import type { Harness } from "./harness";
 import type {
   ClaudeModel,
@@ -14,7 +14,6 @@ import type {
   PersistedState,
   PiModel,
   PrettySessionFile,
-  RemoteFile,
   RemoteFileSize,
   RolloutSlice,
   SessionList,
@@ -143,8 +142,8 @@ export const setPiSessionName = (
   name: string,
 ) => invoke<void>("set_pi_session_name", { path, threadId, name });
 
-export const readRemoteFile = (path: string) =>
-  invoke<RemoteFile>("read_remote_file", { path });
+export const fetchRemoteImage = async (path: string) =>
+  convertFileSrc(await invoke<string>("fetch_remote_image", { path }));
 
 export const downloadRemoteFile = (path: string) =>
   invoke<DownloadedFile>("download_remote_file", {

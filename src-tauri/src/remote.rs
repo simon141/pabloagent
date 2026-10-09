@@ -1403,26 +1403,11 @@ pub fn read_rollout_command(
     ))
 }
 
-pub const REMOTE_FILE_MAX_BYTES: u64 = 8 * 1024 * 1024;
-
-pub fn read_remote_file_command(path: &str) -> Result<String, String> {
-    let path = path.trim();
-    if !path.starts_with('/') {
-        return Err(format!("'{path}' is not an absolute path"));
-    }
-    Ok(format!(
-        "p={}\n\
-         s=$(wc -c <\"$p\") || exit 9\n\
-         if [ \"$s\" -gt {REMOTE_FILE_MAX_BYTES} ]; then printf 'PT_TOOBIG\\t%s\\n' \"$s\"; exit 0; fi\n\
-         printf 'PT_SIZE\\t%s\\n' \"$s\"\n\
-         base64 <\"$p\" | tr -d '\\n'",
-        quote(path)
-    ))
-}
+pub const REMOTE_IMAGE_MAX_BYTES: u64 = 32 * 1024 * 1024;
 
 pub const REMOTE_DOWNLOAD_MAX_BYTES: u64 = 512 * 1024 * 1024;
 
-pub fn download_remote_file_command(path: &str) -> Result<String, String> {
+pub fn download_remote_file_command(path: &str, max: u64) -> Result<String, String> {
     let path = path.trim();
     if !path.starts_with('/') {
         return Err(format!("'{path}' is not an absolute path"));
@@ -1432,7 +1417,7 @@ pub fn download_remote_file_command(path: &str) -> Result<String, String> {
          if [ ! -f \"$p\" ]; then printf 'PT_NOTFILE\\n'; exit 0; fi\n\
          s=$(wc -c <\"$p\") || exit 9\n\
          s=$(printf '%s' \"$s\" | tr -d ' ')\n\
-         if [ \"$s\" -gt {REMOTE_DOWNLOAD_MAX_BYTES} ]; then printf 'PT_TOOBIG\\t%s\\n' \"$s\"; exit 0; fi\n\
+         if [ \"$s\" -gt {max} ]; then printf 'PT_TOOBIG\\t%s\\n' \"$s\"; exit 0; fi\n\
          printf 'PT_BYTES\\t%s\\n' \"$s\"\n\
          exec cat \"$p\"",
         quote(path)
@@ -2202,19 +2187,10 @@ mod tests {
     }
 
     #[test]
-    fn read_remote_file_guards_size_and_shape() {
-        let cmd = read_remote_file_command("/work/chart's.png").unwrap();
-        assert!(cmd.contains(r"'/work/chart'\''s.png'"), "{cmd}");
-        assert!(cmd.contains("PT_SIZE"), "{cmd}");
-        assert!(cmd.contains("PT_TOOBIG"), "{cmd}");
-        assert!(cmd.contains(&REMOTE_FILE_MAX_BYTES.to_string()), "{cmd}");
-        assert!(read_remote_file_command("relative/chart.png").is_err());
-        assert!(read_remote_file_command("").is_err());
-    }
-
-    #[test]
     fn download_streams_raw_bytes_behind_one_header_line() {
-        let cmd = download_remote_file_command("/build/app's release.apk").unwrap();
+        let cmd =
+            download_remote_file_command("/build/app's release.apk", REMOTE_DOWNLOAD_MAX_BYTES)
+                .unwrap();
         assert!(cmd.contains(r"'/build/app'\''s release.apk'"), "{cmd}");
         assert!(cmd.contains("PT_BYTES"), "{cmd}");
         assert!(cmd.contains("PT_NOTFILE"), "{cmd}");
@@ -2228,15 +2204,21 @@ mod tests {
             cmd.trim_end().ends_with("exec cat \"$p\""),
             "nothing may print after the file: {cmd}"
         );
-        assert!(download_remote_file_command("build/app.apk").is_err());
-        assert!(download_remote_file_command("").is_err());
+        assert!(download_remote_file_command("build/app.apk", 1).is_err());
+        assert!(download_remote_file_command("", 1).is_err());
+        let image =
+            download_remote_file_command("/work/chart.png", REMOTE_IMAGE_MAX_BYTES).unwrap();
+        assert!(
+            image.contains(&format!("-gt {REMOTE_IMAGE_MAX_BYTES} ]")),
+            "{image}"
+        );
     }
 
     #[test]
     fn the_size_probe_is_the_download_command_without_the_file() {
         let path = "/build/app's release.apk";
         let probe = remote_file_size_command(path).unwrap();
-        let download = download_remote_file_command(path).unwrap();
+        let download = download_remote_file_command(path, REMOTE_DOWNLOAD_MAX_BYTES).unwrap();
         assert_eq!(
             download.trim_end(),
             format!("{}\nexec cat \"$p\"", probe.trim_end()),

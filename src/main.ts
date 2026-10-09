@@ -3023,36 +3023,11 @@ function resolveTranscriptImage(
 
 async function fetchRemoteImage(path: string): Promise<string | null> {
   try {
-    const file = await api.readRemoteFile(path);
-    const mime = sniffImageMime(file.base64, path);
-    if (!mime) {
-      void api.logClient("image", `${path} is not an image this app can draw`);
-      return null;
-    }
-    return `data:${mime};base64,${file.base64}`;
+    return await api.fetchRemoteImage(path);
   } catch (err) {
     void api.logClient("image", `could not read ${path}: ${String(err)}`);
     return null;
   }
-}
-
-function sniffImageMime(base64: string, path: string): string | null {
-  if (base64.startsWith("iVBOR")) return "image/png";
-  if (base64.startsWith("/9j/")) return "image/jpeg";
-  if (base64.startsWith("R0lGOD")) return "image/gif";
-  if (base64.startsWith("UklGR")) return "image/webp";
-  if (base64.startsWith("Qk")) return "image/bmp";
-  // `<?xml` or `<svg`, base64-encoded.
-  if (base64.startsWith("PD94bWwg") || base64.startsWith("PHN2Zw"))
-    return "image/svg+xml";
-  const ext = (path.match(/\.([a-z0-9]+)$/i)?.[1] ?? "").toLowerCase();
-  if (ext === "png") return "image/png";
-  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
-  if (ext === "gif") return "image/gif";
-  if (ext === "webp") return "image/webp";
-  if (ext === "bmp") return "image/bmp";
-  if (ext === "svg") return "image/svg+xml";
-  return null;
 }
 
 async function interruptTurn(): Promise<void> {

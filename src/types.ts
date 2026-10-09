@@ -159,11 +159,6 @@ export interface RolloutSlice {
   truncated: boolean;
 }
 
-export interface RemoteFile {
-  base64: string;
-  size: number;
-}
-
 export interface DownloadedFile {
   localPath: string;
   name: string;

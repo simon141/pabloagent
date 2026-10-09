@@ -7,7 +7,8 @@ use serde::Serialize;
 
 use crate::ssh::ByteSink;
 
-const KEEP_FOR: Duration = Duration::from_secs(60 * 60);
+pub const DOWNLOAD_KEEP: Duration = Duration::from_secs(60 * 60);
+pub const IMAGE_KEEP: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Default)]
 pub struct Progress {
@@ -62,14 +63,14 @@ impl Progress {
     }
 }
 
-pub fn dir(cache: &Path) -> Result<PathBuf, String> {
-    let dir = cache.join("downloads");
+pub fn dir(cache: &Path, name: &str) -> Result<PathBuf, String> {
+    let dir = cache.join(name);
     std::fs::create_dir_all(&dir)
-        .map_err(|e| format!("cannot make the download directory {}: {e}", dir.display()))?;
+        .map_err(|e| format!("cannot make the cache directory {}: {e}", dir.display()))?;
     Ok(dir)
 }
 
-pub fn prune(dir: &Path) {
+pub fn prune(dir: &Path, keep: Duration) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
@@ -80,7 +81,7 @@ pub fn prune(dir: &Path) {
             .and_then(|m| m.modified())
             .ok()
             .and_then(|at| now.duration_since(at).ok())
-            .is_some_and(|age| age > KEEP_FOR);
+            .is_some_and(|age| age > keep);
         if old {
             // Each download lives in its own token directory; the plain-file
             // arm covers older layouts. On Windows a directory still holding a
@@ -130,6 +131,26 @@ pub fn local_name(remote_path: &str) -> String {
         }
         trimmed
     }
+}
+
+pub fn image_ext(head: &[u8], remote_path: &str) -> Option<&'static str> {
+    let text = String::from_utf8_lossy(head);
+    let text = text.trim_start_matches('\u{feff}').trim_start();
+    let sniffed = match head {
+        [0x89, b'P', b'N', b'G', ..] => Some("png"),
+        [0xFF, 0xD8, 0xFF, ..] => Some("jpg"),
+        [b'G', b'I', b'F', b'8', ..] => Some("gif"),
+        [b'R', b'I', b'F', b'F', _, _, _, _, b'W', b'E', b'B', b'P', ..] => Some("webp"),
+        [b'B', b'M', ..] => Some("bmp"),
+        _ if text.starts_with("<?xml") || text.starts_with("<svg") => Some("svg"),
+        _ => None,
+    };
+    sniffed.or_else(|| {
+        let ext = remote_path.rsplit_once('.')?.1.to_ascii_lowercase();
+        ["png", "jpg", "gif", "webp", "bmp", "svg"]
+            .into_iter()
+            .find(|&known| known == ext || (ext == "jpeg" && known == "jpg"))
+    })
 }
 
 pub struct Download<'a> {
@@ -283,6 +304,19 @@ impl ByteSink for Download<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_image_is_named_by_its_bytes_before_its_path() {
+        assert_eq!(image_ext(b"\x89PNG\r\n\x1a\n", "/a/shot.jpg"), Some("png"));
+        assert_eq!(image_ext(b"\xFF\xD8\xFF\xE0", "/a/x"), Some("jpg"));
+        assert_eq!(image_ext(b"RIFF\0\0\0\0WEBPVP8 ", "/a/x"), Some("webp"));
+        assert_eq!(image_ext(b"RIFF\0\0\0\0WAVEfmt ", "/a/x.wav"), None);
+        assert_eq!(image_ext(b"\xEF\xBB\xBF <svg xmlns=", "/a/x"), Some("svg"));
+        assert_eq!(image_ext(b"<?xml version", "/a/chart"), Some("svg"));
+        assert_eq!(image_ext(b"plain text", "/a/chart.JPEG"), Some("jpg"));
+        assert_eq!(image_ext(b"plain text", "/a/notes.txt"), None);
+        assert_eq!(image_ext(b"", "/a.b/noext"), None);
+    }
 
     #[test]
     fn a_header_says_the_size_or_why_there_is_none() {

@@ -1512,20 +1512,12 @@ export class Transcript {
   private hydrateImage(span: HTMLElement, fresh: boolean): void {
     const path = span.dataset.imgSrc;
     if (!path || !this.onImage) return;
-    span.classList.remove("failed");
+    span.classList.remove("failed", "loaded");
     span.textContent = "Loading image…";
     this.onImage(path, span.dataset.itemId ?? "", fresh).then((src) => {
       if (!span.isConnected) return;
       if (!src) {
-        // The path stays readable, it is the agent's own reference. The retry
-        // hint sits on its own line so it does not re-wrap with the path.
-        span.classList.add("failed");
-        const where = document.createElement("div");
-        where.textContent = `⚠ ${path}`;
-        const hint = document.createElement("div");
-        hint.className = "md-img-retry";
-        hint.textContent = "tap to retry";
-        span.replaceChildren(where, hint);
+        this.showImageFailed(span, path);
         return;
       }
       const img = document.createElement("img");
@@ -1534,9 +1526,27 @@ export class Transcript {
       img.src = src;
       // The image arrives with height 0 and grows on decode.
       img.addEventListener("load", () => this.scrollToBottom());
+      // A cached URL names a file the device cache may have pruned since.
+      img.addEventListener("error", () => {
+        if (!span.isConnected) return;
+        if (fresh) this.showImageFailed(span, path);
+        else this.hydrateImage(span, true);
+      });
       span.classList.add("loaded");
       span.replaceChildren(img);
     });
+  }
+
+  private showImageFailed(span: HTMLElement, path: string): void {
+    // The path stays readable, it is the agent's own reference. The retry
+    // hint sits on its own line so it does not re-wrap with the path.
+    span.classList.add("failed");
+    const where = document.createElement("div");
+    where.textContent = `⚠ ${path}`;
+    const hint = document.createElement("div");
+    hint.className = "md-img-retry";
+    hint.textContent = "tap to retry";
+    span.replaceChildren(where, hint);
   }
 
   private buildImages(images: EmbeddedImage[]): HTMLElement {

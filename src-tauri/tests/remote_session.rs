@@ -3193,7 +3193,7 @@ async fn a_binary_file_downloads_byte_for_byte_over_the_exec_channel() {
 
     let progress = Progress::default();
     assert!(progress.begin());
-    let command = download_remote_file_command(&source.display().to_string()).unwrap();
+    let command = download_remote_file_command(&source.display().to_string(), u64::MAX).unwrap();
     let mut sink = Download::create(dest.clone(), &progress).unwrap();
     let outcome = remote
         .connection
@@ -3293,7 +3293,8 @@ async fn downloading_something_that_is_not_a_file_says_so_and_writes_nothing() {
 
     let dest = remote.temp.join("nope.bin");
     let progress = Progress::default();
-    let command = download_remote_file_command(&remote.temp.display().to_string()).unwrap();
+    let command =
+        download_remote_file_command(&remote.temp.display().to_string(), u64::MAX).unwrap();
     let mut sink = Download::create(dest.clone(), &progress).unwrap();
     let out = remote
         .connection
@@ -3313,4 +3314,30 @@ async fn downloading_something_that_is_not_a_file_says_so_and_writes_nothing() {
     assert_eq!(header, Some(Header::NotAFile));
     assert_eq!(written, 0);
     assert!(!exists, "nothing may be left in the cache");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_file_over_the_cap_is_refused_before_any_bytes_are_sent() {
+    let Some(mut remote) = Remote::start("download-toobig").await else {
+        return;
+    };
+
+    let source = remote.temp.join("huge.png");
+    std::fs::write(&source, awkward_payload(4097)).unwrap();
+    let dest = remote.temp.join("huge-copy.png");
+    let progress = Progress::default();
+    let command = download_remote_file_command(&source.display().to_string(), 4096).unwrap();
+    let mut sink = Download::create(dest.clone(), &progress).unwrap();
+    let out = remote
+        .connection
+        .run_streamed("download", &command, &mut sink)
+        .await;
+    let header = sink.header().cloned();
+    let written = sink.written();
+    sink.discard();
+    remote.cleanup();
+
+    assert_eq!(out.map(|o| o.exit_code), Ok(Some(0)));
+    assert_eq!(header, Some(Header::TooBig(4097)));
+    assert_eq!(written, 0);
 }
