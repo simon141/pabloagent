@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -26,7 +26,8 @@ const TURN_FINISHED_BODY: &str = "Tap to open.";
 
 #[derive(Default)]
 pub struct TurnWatch {
-    watched: Mutex<HashSet<String>>,
+    watched: Mutex<HashMap<String, String>>,
+    host: Mutex<String>,
     suspended: AtomicBool,
     task: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
     tray: Mutex<()>,
@@ -41,7 +42,8 @@ pub fn watch_turn(app: AppHandle, state: State<'_, AppState>, key: String) -> Re
     if let Err(err) = start_service(state.inner()) {
         return Err(format!("Could not start background turn monitoring: {err}"));
     }
-    state.watch.watched.lock().unwrap().insert(key);
+    let host = state.watch.host.lock().unwrap().clone();
+    state.watch.watched.lock().unwrap().insert(key, host);
     // The activity can pause while this command crosses the WebView bridge;
     // if the lifecycle event missed the not-yet-registered turn, take native
     // polling over here.
@@ -54,7 +56,14 @@ pub fn watch_turn(app: AppHandle, state: State<'_, AppState>, key: String) -> Re
 #[tauri::command]
 pub fn reset_watch(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     clear_finished_notification(&app);
-    let stale: Vec<String> = state.watch.watched.lock().unwrap().drain().collect();
+    let stale: Vec<String> = state
+        .watch
+        .watched
+        .lock()
+        .unwrap()
+        .drain()
+        .map(|(key, _)| key)
+        .collect();
     abort_task(&state);
     stop_service(&state, "frontend rebuilt")
         .map_err(|err| format!("Could not stop stale background turn monitoring: {err}"))?;
@@ -69,17 +78,44 @@ pub fn reset_watch(app: AppHandle, state: State<'_, AppState>) -> Result<(), Str
 
 pub fn turn_ended(app: &AppHandle, key: &str) {
     let state = app.state::<AppState>();
-    if !state.watch.watched.lock().unwrap().remove(key) {
+    if state.watch.watched.lock().unwrap().remove(key).is_none() {
         return;
     }
     if state.watch.suspended.load(Ordering::SeqCst) {
         notify_finished(app);
     }
+    stop_when_idle(&state, "every watched turn has ended");
+}
+
+// A turn key only means something on the host that started it, so switching
+// hosts (or forgetting the server) releases the watches nothing can poll.
+pub fn host_changed(state: &AppState, host: &str) {
+    *state.watch.host.lock().unwrap() = host.to_string();
+    let mut released = Vec::new();
+    state.watch.watched.lock().unwrap().retain(|key, on| {
+        let keep = on == host;
+        if !keep {
+            released.push(key.clone());
+        }
+        keep
+    });
+    if released.is_empty() {
+        return;
+    }
+    for key in released {
+        state
+            .diagnostics
+            .push("watch", format!("host changed; released watch {key}"));
+    }
+    stop_when_idle(state, "the watched turns belong to another host");
+}
+
+fn stop_when_idle(state: &AppState, reason: &str) {
     if state.watch.watched.lock().unwrap().is_empty() {
         // Safe from inside the watcher itself: cancellation lands at the next
         // await point.
-        abort_task(&state);
-        let _ = stop_service(&state, "every watched turn has ended");
+        abort_task(state);
+        let _ = stop_service(state, reason);
     }
 }
 
@@ -196,7 +232,7 @@ async fn watch_until_done(app: AppHandle) {
             .watched
             .lock()
             .unwrap()
-            .iter()
+            .keys()
             .cloned()
             .collect();
         if keys.is_empty() {
@@ -206,7 +242,7 @@ async fn watch_until_done(app: AppHandle) {
         for key in keys {
             // The webview may have retired the watch itself while this round
             // was underway (not every device pauses its JavaScript).
-            if !state.watch.watched.lock().unwrap().contains(&key) {
+            if !state.watch.watched.lock().unwrap().contains_key(&key) {
                 continue;
             }
             let output = {
@@ -422,6 +458,45 @@ mod service {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn watching(state: &AppState) -> Vec<String> {
+        let mut keys: Vec<String> = state
+            .watch
+            .watched
+            .lock()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort();
+        keys
+    }
+
+    #[test]
+    fn a_host_change_releases_only_the_other_hosts_watches() {
+        let state = AppState::new();
+        host_changed(&state, "me@a:22");
+        {
+            let mut watched = state.watch.watched.lock().unwrap();
+            watched.insert("a1".into(), "me@a:22".into());
+            watched.insert("a2".into(), "me@a:22".into());
+        }
+        host_changed(&state, "me@a:22");
+        assert_eq!(watching(&state), ["a1", "a2"]);
+
+        state
+            .watch
+            .watched
+            .lock()
+            .unwrap()
+            .insert("b1".into(), "me@b:22".into());
+        host_changed(&state, "me@b:22");
+        assert_eq!(watching(&state), ["b1"]);
+        assert_eq!(*state.watch.host.lock().unwrap(), "me@b:22");
+
+        host_changed(&state, "");
+        assert!(watching(&state).is_empty());
+    }
 
     #[test]
     fn the_finished_notification_has_one_id_of_its_own() {

@@ -80,6 +80,7 @@ fn save_settings(app: AppHandle, settings: SshSettings) -> Result<(), String> {
 async fn clear_settings(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     *state.connection.lock().await = None;
     state.diagnostics.clear();
+    watch::host_changed(&state, "");
     let mut persisted = store::load(&app);
     persisted.settings = None;
     persisted.known_hosts.clear();
@@ -385,11 +386,17 @@ async fn connect(
         ),
     );
 
+    let host = format!(
+        "{}@{}",
+        settings.username,
+        store::host_key(&settings.host, settings.port)
+    );
     let (connection, outcome) =
         ssh::connect_full(settings, known, state.diagnostics.clone()).await?;
 
     if let Some(connection) = connection {
         *state.connection.lock().await = Some(connection);
+        watch::host_changed(&state, &host);
     }
     Ok(outcome)
 }
