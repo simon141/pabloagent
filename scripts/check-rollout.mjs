@@ -433,6 +433,25 @@ check(
   "the status line reads the model and workspace out of the session",
   JSON.stringify(facts),
 );
+const afterApiError = sessionFacts("claude", [
+  ...claudeEntries,
+  {
+    type: "assistant",
+    isApiErrorMessage: true,
+    message: {
+      id: "synthetic-1",
+      model: "<synthetic>",
+      usage: { input_tokens: 0, output_tokens: 0 },
+      content: [{ type: "text", text: "API Error: Overloaded" }],
+    },
+  },
+]);
+check(
+  afterApiError.model === facts.model &&
+    afterApiError.tokens?.last.total === facts.tokens?.last.total,
+  "an API error entry does not replace the model or the last usage, so a resume keeps working",
+  JSON.stringify([afterApiError.model, afterApiError.tokens?.last.total]),
+);
 // claude keeps cache outside `input_tokens`, so the four classes are disjoint
 // and add up to the request.
 check(

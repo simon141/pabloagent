@@ -260,7 +260,15 @@ function claudeFacts(entries: SessionEntry[]): SessionFacts {
     const message = entry.message as
       | { id?: string; model?: string; usage?: Record<string, unknown> }
       | undefined;
-    if (!model && typeof message?.model === "string") model = message.model;
+    // API errors are written as assistant entries with model `<synthetic>`,
+    // which `claude --model` rejects on resume.
+    if (
+      !model &&
+      typeof message?.model === "string" &&
+      message.model !== "<synthetic>" &&
+      !entry.isApiErrorMessage
+    )
+      model = message.model;
     if (!message?.usage) continue;
     const usage = claudeBreakdown(message.usage);
     if (!usage) continue;
