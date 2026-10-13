@@ -234,6 +234,22 @@ function fencedCode(escaped: string): string {
 function inlineMarkdown(escaped: string): string {
   const parts: string[] = [];
   const stash = (html: string) => `\u0000${parts.push(html) - 1}\u0000`;
+  // A code span inside a link label leaves a placeholder inside a placeholder,
+  // and one replace pass does not rescan what it inserted.
+  const unstash = (html: string) => {
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: NUL brackets a stashed span, and cannot occur in the escaped HTML it replaces
+    for (let pass = 0; pass < 3 && /\u0000\d+\u0000/.test(html); pass += 1) {
+      html = html.replace(
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: the same span sentinel, one pass deeper
+        /\u0000(\d+)\u0000/g,
+        (_m, i) => parts[Number(i)] ?? "",
+      );
+    }
+    return html;
+  };
+  // A label bound for an attribute keeps only its text: a stashed span would
+  // paste its markup into the quoted value.
+  const altText = (label: string) => unstash(label).replace(/<[^>]*>/g, "");
 
   // A code span keeps its `<code>` look and gains the file or link affordance;
   // an image path becomes the image itself. The span is measured whole, so a
@@ -263,12 +279,12 @@ function inlineMarkdown(escaped: string): string {
       const data = raw.match(/^data:(image\/[\w.+-]+);base64,[A-Za-z0-9+/=]+$/);
       if (data) {
         return stash(
-          `<img class="chat-img" src="${raw}" alt="${label || "image"}" loading="lazy">`,
+          `<img class="chat-img" src="${raw}" alt="${altText(label) || "image"}" loading="lazy">`,
         );
       }
       const match = filePathIn(raw);
       if (match && match.line === null) {
-        return stash(imagePlaceholder(match.path, label));
+        return stash(imagePlaceholder(match.path, altText(label)));
       }
       const built = anchor(String(target), label || String(target));
       return built.startsWith("<a ") ? stash(built) : whole;
@@ -286,7 +302,7 @@ function inlineMarkdown(escaped: string): string {
         // A link to a picture is a picture, models drop the `!`, but only
         // without a `:12` suffix: a line number means a location in a file.
         if (match.line === null && IMAGE_EXT.test(match.path)) {
-          return stash(imagePlaceholder(match.path, text));
+          return stash(imagePlaceholder(match.path, altText(text)));
         }
         // An empty label falls back to the path.
         return stash(pathSpan(text || escapeHtml(match.path), match));
@@ -307,17 +323,7 @@ function inlineMarkdown(escaped: string): string {
   html = html.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
   html = html.replace(/(^|[\s(])\*([^*\n]+)\*/g, "$1<em>$2</em>");
 
-  // A code span inside a link label leaves a placeholder inside a placeholder,
-  // and one replace pass does not rescan what it inserted.
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: NUL brackets a stashed span, and cannot occur in the escaped HTML it replaces
-  for (let pass = 0; pass < 3 && /\u0000\d+\u0000/.test(html); pass += 1) {
-    html = html.replace(
-      // biome-ignore lint/suspicious/noControlCharactersInRegex: the same span sentinel, one pass deeper
-      /\u0000(\d+)\u0000/g,
-      (_m, i) => parts[Number(i)] ?? "",
-    );
-  }
-  return html;
+  return unstash(html);
 }
 
 function splitRow(line: string): string[] {
@@ -576,7 +582,7 @@ function renderBlocks(lines: string[], fences: string[]): string {
   return out.join("");
 }
 
-function formatMarkdown(text: string): string {
+export function formatMarkdown(text: string): string {
   const fences: string[] = [];
   // Fenced code comes out first so nothing inside it is read as markdown,
   // beyond the URL and path linking `fencedCode` does itself.
