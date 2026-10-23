@@ -32,8 +32,6 @@ const DUPLICATE_EVENTS = new Set([
   "token_count",
 ]);
 
-const META_ENTRIES = new Set(["session_meta", "turn_context", "world_state"]);
-
 export function parseRolloutLines(text: string): RolloutEntry[] {
   const out: RolloutEntry[] = [];
   for (const line of text.split("\n")) {
@@ -79,8 +77,7 @@ function metaLabel(kind: string, p: Record<string, unknown>): string {
   }
   if (kind === "world_state") return "Workspace state";
   if (kind === "token_usage_record") return "Token usage";
-  if (!META_ENTRIES.has(kind)) return `Rollout entry — ${kind}`;
-  return kind;
+  return `Rollout entry — ${kind}`;
 }
 
 function eventLabel(kind: string, p: Record<string, unknown>): string {

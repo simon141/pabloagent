@@ -269,9 +269,6 @@ textarea {
 .small {
   font-size: 12.5px;
 }
-.pad {
-  padding: 0 2px 12px;
-}
 .warn {
   color: var(--warn);
   font-weight: 600;

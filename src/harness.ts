@@ -47,7 +47,6 @@ export interface HarnessInfo {
   sessionsLabel: string;
   permissionModes: PermissionChoice[];
 
-  cannotDeleteReason?: string;
   cannotRewindReason?: string;
 }
 

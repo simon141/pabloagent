@@ -790,37 +790,6 @@ function rejectHostKey(): void {
   );
 }
 
-function relativeTime(unixSeconds: number | null | undefined): string | null {
-  if (
-    unixSeconds == null ||
-    !Number.isFinite(unixSeconds) ||
-    unixSeconds <= 0
-  ) {
-    return null;
-  }
-  // Codex reports seconds; tolerate milliseconds in case a field ever changes.
-  const seconds = unixSeconds > 1e11 ? unixSeconds / 1000 : unixSeconds;
-  const delta = Date.now() / 1000 - seconds;
-
-  // Server clocks running ahead would otherwise read as "in the future".
-  if (delta < 45) return "just now";
-
-  const plural = (n: number, unit: string) =>
-    `${n} ${unit}${n === 1 ? "" : "s"} ago`;
-  const minutes = delta / 60;
-  if (minutes < 60) return plural(Math.round(minutes), "min");
-  const hours = minutes / 60;
-  if (hours < 24) return plural(Math.round(hours), "hour");
-  const days = hours / 24;
-  if (days < 2) return "yesterday";
-  if (days < 7) return plural(Math.round(days), "day");
-  const weeks = days / 7;
-  if (weeks < 5) return plural(Math.round(weeks), "week");
-  const months = days / 30.44;
-  if (months < 12) return plural(Math.round(months), "month");
-  return plural(Math.round(days / 365.25), "year");
-}
-
 const COMPACT_AGE_UNITS: [number, string][] = [
   [31_557_600, "y"],
   [2_629_800, "mo"],
@@ -846,31 +815,14 @@ function compactAge(unixSeconds: number | null | undefined): string | null {
 }
 
 function relativeLabel(at: number, format: string | undefined): string | null {
-  if (format === "short") return shortWhen(at);
-  if (format === "compact") return compactAge(at);
-  return relativeTime(at);
-}
-
-function relativeSpan(
-  unixSeconds: number | null | undefined,
-  label = "",
-  className = "",
-): HTMLElement | null {
-  const rel = relativeTime(unixSeconds);
-  if (rel === null) return null;
-  const span = document.createElement("span");
-  if (className) span.className = className;
-  span.dataset.relAt = String(unixSeconds);
-  span.dataset.relLabel = label;
-  span.textContent = `${label}${rel}`;
-  return span;
+  return format === "compact" ? compactAge(at) : shortWhen(at);
 }
 
 function refreshRelativeLabels(): void {
   for (const el of document.querySelectorAll<HTMLElement>("[data-rel-at]")) {
     const at = Number(el.dataset.relAt);
     const text = relativeLabel(at, el.dataset.relFormat);
-    if (text !== null) el.textContent = `${el.dataset.relLabel ?? ""}${text}`;
+    if (text !== null) el.textContent = text;
   }
 }
 
@@ -1171,13 +1123,6 @@ function enterSession(s: SessionSummary): void {
 async function deleteSelectedSession(): Promise<void> {
   const s = selectedSession();
   if (!s) return;
-  const reason = harnessById(s.harness).cannotDeleteReason;
-  if (reason) {
-    // The row's own menu says this on a disabled item; a key press has nowhere
-    // to write it, and one that quietly does nothing reads as a broken key.
-    showAlert("Cannot delete this session", `Deleting a session is ${reason}.`);
-    return;
-  }
   const rows = sessionRows();
   const at = rows.findIndex((r) => r.dataset.key === sessionKey(s));
   const neighbour =
@@ -1259,10 +1204,13 @@ function renderSessionList(): void {
       closed.textContent = "Closed";
       top.appendChild(closed);
     }
-    const when = relativeSpan(s.modifiedAt, "", "session-row-when");
-    if (when) {
+    const whenText = shortWhen(s.modifiedAt);
+    if (whenText !== null) {
+      const when = document.createElement("span");
+      when.className = "session-row-when";
+      when.dataset.relAt = String(s.modifiedAt);
       when.dataset.relFormat = "short";
-      when.textContent = shortWhen(s.modifiedAt) ?? "";
+      when.textContent = whenText;
       top.appendChild(when);
     }
     body.appendChild(top);
@@ -1430,7 +1378,6 @@ function openPopupMenu(actions: PopupAction[], at?: MenuAnchor): void {
 }
 
 function openSessionMenu(s: SessionSummary, at?: MenuAnchor): void {
-  const harness = harnessById(s.harness);
   // The id is the handle every other tool wants and appears nowhere else in
   // the UI.
   openPopupMenu(
@@ -1447,18 +1394,11 @@ function openSessionMenu(s: SessionSummary, at?: MenuAnchor): void {
         label: "Session details…",
         run: () => openSessionDetails(detailsTargetFor(s)),
       },
-      harness.cannotDeleteReason
-        ? {
-            label: `Delete from server — ${harness.cannotDeleteReason}`,
-            run: () => {},
-            danger: true,
-            disabled: true,
-          }
-        : {
-            label: "Delete from server…",
-            danger: true,
-            run: () => void deleteSessionFromServer(s),
-          },
+      {
+        label: "Delete from server…",
+        danger: true,
+        run: () => void deleteSessionFromServer(s),
+      },
     ],
     at,
   );
@@ -1553,7 +1493,6 @@ function renderChatSessionPill(): void {
   );
   sub.textContent =
     truncateLabel(chat.label, Infinity) ?? (labelable ? "Tap to label" : "");
-  delete sub.dataset.relAt;
 }
 
 function openSessionsView(): void {
@@ -2518,15 +2457,6 @@ function restartActionFor(
     !chat.threadId
   ) {
     return null;
-  }
-  const reason = harnessById(chat.harness).cannotDeleteReason;
-  if (reason) {
-    return {
-      label: `Restart this chat — ${reason}`,
-      run: () => {},
-      disabled: true,
-      danger: true,
-    };
   }
   if (chat.turnActive) {
     return {
@@ -4148,13 +4078,9 @@ async function toggleOpenSessionClosed(): Promise<void> {
 
 function renderChatMenuDelete(): void {
   const item = $<HTMLButtonElement>("chat-menu-delete");
-  const reason = harnessById(chat.harness).cannotDeleteReason;
   if (chat.turnActive) {
     item.disabled = true;
     item.textContent = "Delete session…";
-  } else if (reason) {
-    item.disabled = true;
-    item.textContent = `Delete session — ${reason}`;
   } else if (!sessions.find(isOpenSession)) {
     item.disabled = true;
     item.textContent = "Delete session — no session saved yet";
@@ -4170,11 +4096,6 @@ function deleteOpenSession(): void {
       "Cannot delete this session",
       "This session has a turn running. Interrupt it first.",
     );
-    return;
-  }
-  const reason = harnessById(chat.harness).cannotDeleteReason;
-  if (reason) {
-    showAlert("Cannot delete this session", `Deleting a session is ${reason}.`);
     return;
   }
   const current = sessions.find(isOpenSession);
