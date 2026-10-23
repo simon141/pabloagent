@@ -1636,7 +1636,10 @@ pub fn delete_session_command(
     opencode_bin: &str,
 ) -> Result<String, String> {
     let path = path.trim();
-    if !path.starts_with('/') || !path.ends_with(".jsonl") {
+    let stem = path
+        .rsplit_once('/')
+        .and_then(|(_, file)| file.strip_suffix(".jsonl"));
+    if !path.starts_with('/') || stem.is_none_or(|s| s.is_empty() || s.starts_with('.')) {
         return Err(format!("'{path}' does not name a session file"));
     }
     let opencode_id = if harness == Harness::Opencode {
@@ -1997,6 +2000,15 @@ mod tests {
         // A path that is not a session file is refused before any shell runs.
         assert!(delete_session_command(Harness::Codex, "relative.jsonl", "a", "opencode").is_err());
         assert!(delete_session_command(Harness::Pi, "/etc/passwd", "a", "opencode").is_err());
+        // A Claude delete also removes the directory named by the stem, so an
+        // empty or hidden stem would name the parent tree.
+        for path in [
+            "/h/.claude/projects/-w/.jsonl",
+            "/h/.jsonl",
+            "/h/p/-w/..jsonl",
+        ] {
+            assert!(delete_session_command(Harness::Claude, path, "id", "opencode").is_err());
+        }
     }
 
     #[test]
