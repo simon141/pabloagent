@@ -1114,6 +1114,7 @@ function enterSession(s: SessionSummary): void {
     goto("chat");
     // Going back to the open chat is reading it too.
     markSessionRead(s.id);
+    consumePendingShare();
     consumePendingForward();
   } else {
     void openSession(s);
@@ -1932,6 +1933,7 @@ function resetChat(): void {
   chat.turnKey = null;
   chat.title = null;
   chat.label = null;
+  chat.permissionMode = "";
   rendered.clear();
   localEchoes.clear();
   newSessionNotice = null;
@@ -3748,11 +3750,14 @@ function applyTranscriptFilters(): void {
   transcript.setHidden(
     hidden.length ? (item) => isHidden(harness, hidden, item) : null,
   );
+  renderFilterCount();
+}
+
+function renderFilterCount(): void {
+  const count = hiddenKinds(chat.harness).length;
   // The count lives on the menu item: a permanent dot on the ☰ itself would
   // read as a notification badge.
-  $("chat-menu-filters-count").textContent = hidden.length
-    ? `${hidden.length} hidden`
-    : "";
+  $("chat-menu-filters-count").textContent = count ? `${count} hidden` : "";
 }
 
 function closeChatMenu(): void {
@@ -3762,7 +3767,7 @@ function closeChatMenu(): void {
 
 function openChatMenu(): void {
   // The harness behind the count changes with the session.
-  applyTranscriptFilters();
+  renderFilterCount();
   renderChatMenuRefresh();
   renderChatMenuSessionData();
   renderChatMenuSessionPretty();
