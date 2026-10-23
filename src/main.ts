@@ -142,6 +142,9 @@ const chat: ChatState = {
 };
 
 let chatGeneration = 0;
+// Separate from `chatGeneration` so a failed open leaves the open chat's turn
+// follow running.
+let openSessionSeq = 0;
 let sessionsRefreshPromise: Promise<void> | null = null;
 let sessionsRefreshIsFull = false;
 let sessionsGeneration = 0;
@@ -2059,11 +2062,14 @@ async function readWholeRollout(
 }
 
 async function openSession(session: SessionSummary): Promise<void> {
-  let generation = ++chatGeneration;
+  const open = ++openSessionSeq;
+  let generation = chatGeneration;
+  const superseded = () =>
+    openSessionSeq !== open || chatGeneration !== generation;
   overlay("Opening session…");
   try {
     const slice = await readWholeRollout(session.path, session.harness);
-    if (chatGeneration !== generation) return;
+    if (superseded()) return;
     resetChat();
     generation = chatGeneration;
     // The harness comes from the session, never from the last dialog: a codex
@@ -2108,7 +2114,7 @@ async function openSession(session: SessionSummary): Promise<void> {
     consumePendingForward();
     if (session.turnKey) void followTurn(session.turnKey, chatGeneration);
   } catch (err) {
-    if (chatGeneration !== generation) return;
+    if (superseded()) return;
     overlay(null);
     goto("sessions");
     showError("sessions-error", `Could not open session ${session.id}`, err);
